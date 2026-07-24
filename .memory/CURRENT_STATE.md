@@ -1,16 +1,7 @@
-# CURRENT_STATE
+# CURRENT_STATE (legacy compatibility file only)
 
-## Project
+Canonical project state: `../docs/CURRENT_STATUS.md`
 
-- Name: changjietu
-- Type: (待填写)
-- Main path: /root/code/changjietu
-- Created: 2026-07-24
-
-## Current stage
-
-初始创建。用 agent 菜单进入本项目后，再填真实技术栈与进度。
-
-## Notes
-
-- 由 `agent` 启动器「新建项目」脚手架生成
+**This file must not be used** to infer the current version, current phase,
+or session objective. It exists solely for backward compatibility with tools
+that may expect a `.memory/` directory to be present.
