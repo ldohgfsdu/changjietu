@@ -1,0 +1,30 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+.kotlin/
+
+# Agent/session runtime memory (not part of RC baseline)
+.memory/
+
+# Agent external I/O temp files
+.external_inbox/
+.external_outbox/
+
+# Device output files
+/Download/
+/download/

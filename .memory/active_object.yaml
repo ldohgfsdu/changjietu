@@ -1,6 +1,0 @@
-status: none
-authority: non_authoritative
-canonical_status: docs/CURRENT_STATUS.md
-note: >
-  Session objectives are established only by the user's current request
-  or explicit /goal. This file is a legacy compatibility placeholder.
