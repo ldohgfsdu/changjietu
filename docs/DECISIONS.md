@@ -77,9 +77,20 @@
 
 ---
 
+## D-008 · C2F1 处理完成一次性导航契约（ProcessTransition）
+
+| | |
+|--|--|
+| **状态** | Accepted（commit `d244f6d`） |
+| **决策** | 处理完成不再用「slices 非空 且 非 processing」推断（slices 是持久业务状态，返回后旧 slices 仍在，会把用户弹回 preview）。改为 `ProcessTransition`（core）pending id + ack：仅初始 `startProcess` 成功结束时 `markCompleted()` 产生单调递增 pending id；MainActivity 用 `LaunchedEffect(pendingProcessResultId)` 观察一次导航进 preview 后 `ackProcessResult` 清空。失败不产生 pending；手动切片编辑（`reprocessFromRanges`）不产生 pending；ack 仅当 id 匹配当前 pending 才生效，旧 ack 不清除新 pending。借鉴 C1 pending/ack 思路但保持最小、独立，不泛化为全局事件系统 |
+| **依据** | C2.3 六场景验收；`ProcessTransitionTest`（纯 JVM）9 例 + `C2EvidenceGateTest` 5 例；构建门 94 用例/0 失败 |
+
+---
+
 ## 变更记录
 
 | 日期 | 变更 |
 |------|------|
 | 2026-07-25 | 项目迁移至 AgentStandards 1.0.0；提取 GOAL.md 已有决策 |
-| 2026-08-16 | 记录 D-007（C2）
+| 2026-08-16 | 记录 D-007（C2） |
+| 2026-08-16 | 记录 D-008（C2F1）
