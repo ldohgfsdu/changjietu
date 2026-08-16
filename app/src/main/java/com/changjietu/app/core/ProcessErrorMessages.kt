@@ -8,7 +8,8 @@ import android.util.Log
 object ProcessErrorMessages {
     const val TAG = "Changjietu"
 
-    const val OPEN_FAILED = "无法打开图片，请从相册重新选择或换一张图。"
+    const val OPEN_FAILED = "源图片不可用或权限已失效，请从相册重新选择图片。"
+    const val INVALID_SHARE = "未收到有效的图片，请从相册重新选择。"
     const val ANALYZE_FAILED = "图片分析失败，请重试或换一张图。"
     const val PROCESS_FAILED = "切片处理失败，请调整参数后重试。"
     const val REPROCESS_FAILED = "重新切片失败，请重试。"

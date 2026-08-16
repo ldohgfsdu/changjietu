@@ -9,6 +9,7 @@ import com.changjietu.app.core.EditorState
 import com.changjietu.app.core.ProcessErrorMessages
 import com.changjietu.app.core.ProcessSettings
 import com.changjietu.app.core.SourceInfo
+import com.changjietu.app.core.UriPersistencePolicy
 import com.changjietu.app.feature.export.ExportRepository
 import com.changjietu.app.feature.history.RecentStore
 import com.changjietu.app.image.analysis.MarginDetector
@@ -54,6 +55,36 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     private val _recents = MutableStateFlow(recentStore.list())
     val recents: StateFlow<List<com.changjietu.app.feature.history.RecentItem>> = _recents.asStateFlow()
 
+    /**
+     * 外部分享事件的单调递增序号 = 分享进入导航的单一事实来源。
+     * 仅由 [consumeShare] / [openInvalidShare] 递增；配置变更后序号不变，
+     * 因此 UI 不会因 recomposition / configuration change 重复导航。
+     */
+    private val _shareRequestId = MutableStateFlow(0L)
+    val shareRequestId: StateFlow<Long> = _shareRequestId.asStateFlow()
+
+    /** 外部分享入口：持久化读权限（若来源支持）→ 加载新源并递增分享序号。 */
+    fun consumeShare(uri: Uri, flags: Int) {
+        val cr = getApplication<Application>().contentResolver
+        if (UriPersistencePolicy.shouldTakePersistableRead(flags)) {
+            try {
+                cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {
+                // 提供方不支持 persistable grant → 回退为临时访问，不在此失败
+            }
+        }
+        _shareRequestId.update { it + 1 }
+        openUri(uri)
+    }
+
+    /** 无效/缺失/不支持的外部输入：graceful fail，不 crash、不误判为正常源。 */
+    fun openInvalidShare() {
+        _source.value = null
+        _editor.value = null
+        _homeState.value = HomeUiState.Error(ProcessErrorMessages.INVALID_SHARE)
+        _shareRequestId.update { it + 1 }
+    }
+
     fun updateSettings(transform: (ProcessSettings) -> ProcessSettings) {
         _settings.update(transform)
         // 重新估算片数
@@ -77,16 +108,36 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             _homeState.value = HomeUiState.Loading("正在分析图片…")
             _editor.value = null
             try {
+                withContext(Dispatchers.IO) { checkReadable(uri) }
                 val info = withContext(Dispatchers.IO) { analyzeUri(uri) }
                 _source.value = info
                 _homeState.value = HomeUiState.Idle
             } catch (e: Exception) {
                 _source.value = null
                 _homeState.value = HomeUiState.Error(
-                    ProcessErrorMessages.logAndFriendly(e, ProcessErrorMessages.ANALYZE_FAILED),
+                    ProcessErrorMessages.logAndFriendly(
+                        e,
+                        if (e is SourceUnavailableException) {
+                            ProcessErrorMessages.OPEN_FAILED
+                        } else {
+                            ProcessErrorMessages.ANALYZE_FAILED
+                        },
+                    ),
                 )
             }
         }
+    }
+
+    /** 读取预检：URI 已失效/无权限（stale）时抛出 [SourceUnavailableException]，走恢复路径。 */
+    private fun checkReadable(uri: Uri) {
+        val cr = getApplication<Application>().contentResolver
+        val stream = try {
+            cr.openInputStream(uri)
+        } catch (e: SecurityException) {
+            null
+        }
+        if (stream == null) throw SourceUnavailableException()
+        stream.close()
     }
 
     private fun analyzeUri(uri: Uri): SourceInfo {
@@ -319,3 +370,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         _homeState.value = HomeUiState.Idle
     }
 }
+
+/** URI 已失效 / 读取权限已回收（stale）时抛出，映射到「源不可用，请重新选择」恢复文案。 */
+private class SourceUnavailableException : Exception()
