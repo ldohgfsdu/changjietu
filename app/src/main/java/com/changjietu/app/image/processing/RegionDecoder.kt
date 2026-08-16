@@ -77,9 +77,11 @@ object RegionDecoderUtil {
         var y = 0
         while (y < h) {
             val y2 = min(y + stripH, h)
+            // 词法所有权：任何成功获得的 handle 都由 use{} 恰好 close 一次；
+            // null-bitmap 跳过条带也仍 close，且不会因 continue 跳过 y 递增而死循环。
             val handle = source.decodeRegion(0, y, w, y2, sampleSize) ?: break
-            try {
-                val bmp = handle.bitmapOrNull ?: continue
+            handle.use { hdl ->
+                val bmp = hdl.bitmapOrNull ?: return@use
                 val bw = bmp.width
                 val bh = bmp.height
                 val scaleX = w.toFloat() / bw
@@ -107,8 +109,6 @@ object RegionDecoderUtil {
                     }
                     rowEnergy[srcY] = rowVar / max(1, bw - 1)
                 }
-            } finally {
-                handle.close()
             }
             y = y2
         }

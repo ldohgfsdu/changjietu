@@ -82,9 +82,6 @@ class MainActivity : ComponentActivity() {
                             onBack = {
                                 nav.popBackStack("home", inclusive = false)
                             },
-                            onProcessed = {
-                                // 导航由 LaunchedEffect 在切片完成后触发
-                            },
                         )
                     }
                     composable("preview") {

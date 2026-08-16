@@ -193,6 +193,8 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 quality = quality,
                 margins = margins,
                 estimatedSlices = plan.sliceCount,
+                columnEnergy = colE,
+                rowEnergy = rowE,
             )
         }
     }
@@ -241,7 +243,9 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             val margins = if (s.cropMargins) srcInfo.margins else Margins(0, 0, 0, 0)
             val contentH = (src.height - margins.top - margins.bottom).coerceAtLeast(1)
             val contentW = (src.width - margins.left - margins.right).coerceAtLeast(1)
-            val (colE, rowE) = RegionDecoderUtil.computeEnergyMaps(src)
+            // 复用 analyzeUri 已计算的 source-invariant raw energy，不再二次全图扫描
+            val colE = srcInfo.columnEnergy
+            val rowE = srcInfo.rowEnergy
             val contentEnergy = if (margins.top + contentH <= rowE.size) {
                 rowE.copyOfRange(margins.top, margins.top + contentH)
             } else {

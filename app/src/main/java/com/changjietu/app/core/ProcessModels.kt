@@ -28,6 +28,10 @@ data class SourceInfo(
     val quality: QualityReport,
     val margins: Margins = Margins(0, 0, 0, 0),
     val estimatedSlices: Int = 0,
+    /** 源图列能量（源坐标，仅 source-invariant，不随设置变化）。 */
+    val columnEnergy: FloatArray = FloatArray(0),
+    /** 源图行能量（源坐标，仅 source-invariant，不随设置变化）。 */
+    val rowEnergy: FloatArray = FloatArray(0),
 )
 
 data class EditorState(

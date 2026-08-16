@@ -43,7 +43,6 @@ import com.changjietu.app.image.analysis.QualityLevel
 fun ProcessScreen(
     viewModel: LongshotViewModel,
     onBack: () -> Unit,
-    onProcessed: () -> Unit,
 ) {
     val source by viewModel.source.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -162,7 +161,6 @@ fun ProcessScreen(
             Button(
                 onClick = {
                     viewModel.startProcess()
-                    onProcessed()
                 },
                 enabled = editor?.isProcessing != true,
                 modifier = Modifier.fillMaxWidth(),
