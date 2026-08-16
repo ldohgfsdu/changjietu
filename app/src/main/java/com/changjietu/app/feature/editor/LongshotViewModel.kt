@@ -8,7 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.changjietu.app.core.EditorState
 import com.changjietu.app.core.ProcessErrorMessages
 import com.changjietu.app.core.ProcessSettings
+import com.changjietu.app.core.ShareDelivery
 import com.changjietu.app.core.SourceInfo
+import com.changjietu.app.core.UriAccessSource
 import com.changjietu.app.core.UriPersistencePolicy
 import com.changjietu.app.feature.export.ExportRepository
 import com.changjietu.app.feature.history.RecentStore
@@ -55,35 +57,42 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     private val _recents = MutableStateFlow(recentStore.list())
     val recents: StateFlow<List<com.changjietu.app.feature.history.RecentItem>> = _recents.asStateFlow()
 
-    /**
-     * 外部分享事件的单调递增序号 = 分享进入导航的单一事实来源。
-     * 仅由 [consumeShare] / [openInvalidShare] 递增；配置变更后序号不变，
-     * 因此 UI 不会因 recomposition / configuration change 重复导航。
-     */
-    private val _shareRequestId = MutableStateFlow(0L)
-    val shareRequestId: StateFlow<Long> = _shareRequestId.asStateFlow()
+    /** 外部分享交付的一次性状态机（pending/consumed/ack），见 [ShareDelivery]。 */
+    private val shareDelivery = ShareDelivery()
 
-    /** 外部分享入口：持久化读权限（若来源支持）→ 加载新源并递增分享序号。 */
+    private val _pendingShareId = MutableStateFlow<Long?>(null)
+    val pendingShareId: StateFlow<Long?> = _pendingShareId.asStateFlow()
+
+    /** 本实例是否已消费过分享（配置重建去重护栏）。 */
+    fun hasConsumedShare(): Boolean = shareDelivery.consumed
+
+    /** 外部 SEND/SEND_MULTIPLE 分享入口：登记一次性交付 → 加载新源。 */
     fun consumeShare(uri: Uri, flags: Int) {
-        val cr = getApplication<Application>().contentResolver
-        if (UriPersistencePolicy.shouldTakePersistableRead(flags)) {
-            try {
-                cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (e: Exception) {
-                // 提供方不支持 persistable grant → 回退为临时访问，不在此失败
-            }
-        }
-        _shareRequestId.update { it + 1 }
-        openUri(uri)
+        val id = shareDelivery.consume()
+        _pendingShareId.value = id
+        openUri(uri, UriAccessSource.EXTERNAL_SHARE, flags)
     }
 
     /** 无效/缺失/不支持的外部输入：graceful fail，不 crash、不误判为正常源。 */
     fun openInvalidShare() {
+        val id = shareDelivery.consume()
         _source.value = null
         _editor.value = null
         _homeState.value = HomeUiState.Error(ProcessErrorMessages.INVALID_SHARE)
-        _shareRequestId.update { it + 1 }
+        _pendingShareId.value = id
     }
+
+    /** UI 在完成导航后 ack；仅当 id 匹配当前 pending 才清空。 */
+    fun ackSharePending(id: Long) {
+        shareDelivery.ack(id)
+        if (shareDelivery.pendingId == null) _pendingShareId.value = null
+    }
+
+    /** 用户 Photo Picker 选图入口。 */
+    fun openPickerUri(uri: Uri) = openUri(uri, UriAccessSource.USER_PICKER)
+
+    /** 从最近处理历史打开入口。 */
+    fun openRecent(uri: Uri) = openUri(uri, UriAccessSource.RECENT)
 
     fun updateSettings(transform: (ProcessSettings) -> ProcessSettings) {
         _settings.update(transform)
@@ -103,7 +112,10 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         _source.value = src.copy(estimatedSlices = plan.sliceCount)
     }
 
-    fun openUri(uri: Uri) {
+    fun openUri(uri: Uri, source: UriAccessSource, flags: Int = 0) {
+        if (UriPersistencePolicy.shouldAttemptPersistRead(source, flags)) {
+            tryPersistRead(uri)
+        }
         viewModelScope.launch {
             _homeState.value = HomeUiState.Loading("正在分析图片…")
             _editor.value = null
@@ -125,6 +137,19 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     ),
                 )
             }
+        }
+    }
+
+    /**
+     * 尝试取得长期只读权限；仅申请 READ，绝不申请 WRITE。
+     * 失败（提供方不支持/stale）时 graceful 回退为临时访问，不 crash、不标记为已持久化。
+     */
+    private fun tryPersistRead(uri: Uri) {
+        val cr = getApplication<Application>().contentResolver
+        try {
+            cr.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (e: Exception) {
+            // graceful fallback：保持临时 capability
         }
     }
 

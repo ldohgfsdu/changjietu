@@ -27,21 +27,28 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        handleShareIntent(intent)
+        // 配置重建时 ViewModel 存活并已消费过分享，跳过以避免重复处理原始 Intent；
+        // 进程死亡重建时 ViewModel 新建、consumed=false，则重新消费（cold-start 恢复）。
+        if (!viewModel.hasConsumedShare()) {
+            handleShareIntent(intent)
+        }
         setContent {
             ChangjietuTheme {
                 val nav = rememberNavController()
                 val source by viewModel.source.collectAsStateWithLifecycle()
                 val editor by viewModel.editor.collectAsStateWithLifecycle()
-                val shareRequestId by viewModel.shareRequestId.collectAsStateWithLifecycle()
+                val pendingShareId by viewModel.pendingShareId.collectAsStateWithLifecycle()
 
-                // 分享进入导航的单一事实来源：任何新外部分享（有效或无效）都回到处理页。
-                // 序号由 ViewModel 单调递增；配置变更后序号不变，故不会重复导航。
-                LaunchedEffect(shareRequestId) {
-                    if (shareRequestId > 0) {
+                // 分享进入导航的 one-shot：仅当有待处理请求时导航一次，随后 ack 清空。
+                // pending 存于 ViewModel，collector 未建立时也不丢失；ack 后配置重建/重组合
+                // 不再导航、不再重开 URI；新 onNewIntent 产生新 pending → 必然触发。
+                LaunchedEffect(pendingShareId) {
+                    val id = pendingShareId
+                    if (id != null) {
                         nav.navigate("process") {
                             launchSingleTop = true
                         }
+                        viewModel.ackSharePending(id)
                     }
                 }
 

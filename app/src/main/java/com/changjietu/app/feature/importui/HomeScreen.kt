@@ -53,7 +53,7 @@ fun HomeScreen(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.openUri(uri)
+            viewModel.openPickerUri(uri)
             onOpened()
         }
     }
@@ -117,7 +117,7 @@ fun HomeScreen(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(recents, key = { it.uri + it.timestamp }) { item ->
                         RecentRow(item) {
-                            viewModel.openUri(Uri.parse(item.uri))
+                            viewModel.openRecent(Uri.parse(item.uri))
                             onOpened()
                         }
                     }
