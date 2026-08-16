@@ -36,11 +36,18 @@ Android 本地工具：长截图质量检测 → 智能切片 → 批量分享�
 
 ## 构建
 
+推荐 / 验证过的 JDK：**17**。构建命令：
+
 ```bash
-export ANDROID_HOME=/path/to/Android/Sdk
-# arm64 主机需 qemu-x86_64；已配置 tools/aapt2 包装
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
+
+AAPT2 override 是**仓库可控**的：`gradle.properties` 中 `android.aapt2FromMavenOverride=../tools/aapt2`，指向仓库内 `tools/aapt2` 兼容包装（相对路径，非机器绝对路径）。AAPT2 来源为 Android SDK `build-tools`（35.0.0），非第三方二进制；包装脚本 `tools/aapt2` 由仓库维护。
+
+- **标准环境（x86-64 / macOS / Windows）**：包装脚本透明地把 AAPT2 委托给 SDK 的 `build-tools/35.0.0/aapt2`，无需额外配置。
+- **ARM64 Linux 主机**：Android 官方 AAPT2 只有 x86-64 变体。包装脚本在 ARM64 上通过 `qemu-user`（`qemu-x86_64`）运行 SDK aapt2：
+  1. 安装 `qemu-user`（提供 `qemu-x86_64`）
+  2. 其余无需配置（override 已在仓库 `gradle.properties`）
 
 Debug APK：
 
