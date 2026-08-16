@@ -87,10 +87,31 @@
 
 ---
 
+## D-009 · C3 移除 material-icons-extended（尺寸优化）
+
+| | |
+|--|--|
+| **状态** | Accepted（C3） |
+| **决策** | clean A/B 实测：移除 `material-icons-extended` 使 debug APK 从 17,710,094 → 10,828,657 bytes（-6,881,437 / -38.9%）。项目仅用 5 个图标，其中仅 Image 与 CallMerge 为 extended-only（material-icons-core=0）；新增本地 `AppIcons`（ImageVector）提供这 2 个图标，视觉语义与 AndroidX 一致。其余 ArrowBack/Delete/Share 来自 material-icons-core（material 传递依赖保留）。依赖为真正大头，故移除 |
+| **依据** | C3.1 size attribution（zip 分类 + AAR 逐图标核对 + clean A/B）；94 用例/0 失败、assemble/lint PASS |
+
+---
+
+## D-010 · C3 Build Contract：AAPT2 override 仓库可控
+
+| | |
+|--|--|
+| **状态** | Accepted（C3） |
+| **决策** | 普通构建依赖用户级 `~/.gradle/gradle.properties` 的 `android.aapt2FromMavenOverride`（机器绝对路径）属外部配置，非 reproducible closure。AGP 通过 `ProviderFactory.gradleProperty` 读取该属性（`Project.extra` 无法注入），故唯一仓库可控方式是静态 `gradle.properties`。改为提交 `gradle.properties`：`android.aapt2FromMavenOverride=../tools/aapt2`（相对路径，指向仓库内 `tools/aapt2` qemu 包装）。包装脚本自检测架构：x86-64 直接运行 SDK `build-tools/35.0.0/aapt2`，ARM64 经 `qemu-user` 运行。无机器绝对路径入库、无用户级手动配置要求。代价：所有平台改用 SDK aapt2（非 AGP Maven aapt2），已文档化 |
+| **依据** | C3.2 provenance + C3.3 方案评估 + C3.4 strict isolated Gate PASS（fresh GRADLE_USER_HOME、无用户级 gradle.properties，APK SHA `04ced785…` 复现） |
+
+---
+
 ## 变更记录
 
 | 日期 | 变更 |
 |------|------|
 | 2026-07-25 | 项目迁移至 AgentStandards 1.0.0；提取 GOAL.md 已有决策 |
 | 2026-08-16 | 记录 D-007（C2） |
-| 2026-08-16 | 记录 D-008（C2F1）
+| 2026-08-16 | 记录 D-008（C2F1） |
+| 2026-08-16 | 记录 D-009、D-010（C3）

@@ -39,8 +39,10 @@
   - C1（进图合同）commit `91a2030`；C2（解码生命周期 + 能量缓存复用）commit `67d6512`
   - C2F1（处理完成一次性导航契约 + C2.2 Evidence Gate）commit `d244f6d`
   - 构建门：`testDebugUnitTest` 94 用例 / 0 失败、`assembleDebug`、`lintDebug` 均 PASS（JDK 17）
-- **Isolated Build Reproducibility Gate：BLOCKED_EXTERNAL / BUILD_ENVIRONMENT**
-  - ARM64 主机 vs AGP 8.7.3 的 Maven x86-64 AAPT2，无法复现隔离 PASS；未伪造、未修
+- **C3（Artifact Size & Build Environment Closure）：SIZE-CLOSED / BUILD-CLOSED / RUNTIME-PENDING**
+  - 尺寸 A/B：移除 `material-icons-extended`（~6.9MB / ~39%），本地 `AppIcons` 保留 Image/CallMerge
+  - Build contract：AAPT2 override 改为仓库可控 `gradle.properties`（`android.aapt2FromMavenOverride=../tools/aapt2` → `tools/aapt2` 包装），消除用户级 Gradle 配置依赖
+  - **Isolated Build Reproducibility Gate：PASS**（fresh GRADLE_USER_HOME、无用户级 gradle.properties，复用已声明 wrapper/dependency cache；test/assemble/lint 全过，APK SHA 复现）
 
 ---
 
@@ -58,6 +60,13 @@
 | 项 | 值 |
 |----|-----|
 | 产物路径 | `app/build/outputs/apk/debug/app-debug.apk` |
+| variant | debug |
+| 测量日 | 2026-08-16 |
+| 环境 | JDK 17 · Gradle 8.11.1 · AGP 8.7.3 · Kotlin 2.0.21 |
+| 体积（clean A/B） | **17,710,094** bytes（含 material-icons-extended，SHA `50404db0…`）→ **10,828,657** bytes（移除后，SHA `04ced785…`），-6,881,437 bytes / -38.9% |
+| APK 成分 | classes.dex ≈ 10.25 MB（97%）、resources.arsc ≈ 418 KB、lib ≈ 37 KB、res ≈ 14 KB、其余少量 |
+
+> 注：APK 文件字节在不同构建间存在 ZIP 对齐填充非确定性（约 ±11 KB），A/B 以 clean 构建为权威。
 
 ---
 
