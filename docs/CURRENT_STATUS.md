@@ -1,6 +1,6 @@
 # 当前状态
 
-> 更新日期：2026-07-25
+> 更新日期：2026-08-16
 > **只记录仓库可证实的事实**。
 
 ---
@@ -35,13 +35,17 @@
 
 ## 3. 进行中
 
-<!-- 无活跃开发任务 -->
+- **C1 / C2：CODE-CLOSED / RUNTIME-PENDING**（无 adb 设备，运行态冒烟待补）
+  - C1（进图合同）commit `91a2030`；C2（解码生命周期 + 能量缓存复用）commit `67d6512`
+  - 构建门：`testDebugUnitTest` 80 用例 / 0 失败、`assembleDebug`、`lintDebug` 均 PASS（JDK 17）
+- **Isolated Build Reproducibility Gate：BLOCKED_EXTERNAL / BUILD_ENVIRONMENT**
+  - ARM64 主机 vs AGP 8.7.3 的 Maven x86-64 AAPT2，无法复现隔离 PASS；未伪造、未修
 
 ---
 
 ## 4. 缺口
 
-- 无 adb 设备，运行态冒烟待补
+- 无 adb 设备，运行态冒烟待补（C1 / C2 最高状态为 CODE-CLOSED / RUNTIME-PENDING）
 - 第二阶段功能全部延后（见 GOAL.md §第二阶段）
 
 ---
