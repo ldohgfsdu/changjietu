@@ -14,8 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Image
+import com.changjietu.app.core.icons.AppIcons
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -84,7 +83,7 @@ fun HomeScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Icon(Icons.Default.Image, contentDescription = null)
+                Icon(AppIcons.Image, contentDescription = null)
                 Spacer(Modifier.padding(6.dp))
                 Text("选择图片")
             }

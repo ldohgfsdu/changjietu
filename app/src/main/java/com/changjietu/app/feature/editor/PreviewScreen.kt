@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.CallMerge
+import com.changjietu.app.core.icons.AppIcons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -216,7 +216,7 @@ fun PreviewScreen(
                             Row {
                                 if (index < ed.slices.lastIndex) {
                                     IconButton(onClick = { viewModel.mergeSliceWithNext(index) }) {
-                                        Icon(Icons.AutoMirrored.Filled.CallMerge, contentDescription = "与下一片合并")
+                                        Icon(AppIcons.CallMerge, contentDescription = "与下一片合并")
                                     }
                                 }
                                 if (ed.slices.size > 1) {
