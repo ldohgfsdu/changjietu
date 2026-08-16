@@ -67,8 +67,19 @@
 
 ---
 
+## D-007 · C2 解码生命周期与能量缓存复用
+
+| | |
+|--|--|
+| **状态** | Accepted（commit `67d6512`） |
+| **决策** | ①`computeEnergyMaps` 改用 `handle.use{}` 词法所有权（任何成功 handle 恰好 close 一次），移除可能跳过 `y` 递增导致死循环的裸 `continue`；②源图 raw `columnEnergy`/`rowEnergy`（source-invariant）缓存进 `SourceInfo`，由 `analyzeUri` 计算一次、`processInternal` 复用，消除重复全图能量扫描；③删除 `onProcessed` 死回调 |
+| **依据** | 规格 `changjietu0.2.md` C2.1/C2.2/C2.3；构建门 80 用例/0 失败 |
+
+---
+
 ## 变更记录
 
 | 日期 | 变更 |
 |------|------|
 | 2026-07-25 | 项目迁移至 AgentStandards 1.0.0；提取 GOAL.md 已有决策 |
+| 2026-08-16 | 记录 D-007（C2）
