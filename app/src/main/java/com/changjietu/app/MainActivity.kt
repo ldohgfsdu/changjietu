@@ -36,8 +36,8 @@ class MainActivity : ComponentActivity() {
             ChangjietuTheme {
                 val nav = rememberNavController()
                 val source by viewModel.source.collectAsStateWithLifecycle()
-                val editor by viewModel.editor.collectAsStateWithLifecycle()
                 val pendingShareId by viewModel.pendingShareId.collectAsStateWithLifecycle()
+                val pendingProcessResultId by viewModel.pendingProcessResultId.collectAsStateWithLifecycle()
 
                 // 分享进入导航的 one-shot：仅当有待处理请求时导航一次，随后 ack 清空。
                 // pending 存于 ViewModel，collector 未建立时也不丢失；ack 后配置重建/重组合
@@ -52,16 +52,17 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // 处理完成后自动进 preview
-                LaunchedEffect(editor?.slices?.size, editor?.isProcessing) {
-                    val ed = editor
-                    if (ed != null && !ed.isProcessing && ed.slices.isNotEmpty()) {
-                        val route = nav.currentBackStackEntry?.destination?.route
-                        if (route == "process" || route == "home") {
-                            nav.navigate("preview") {
-                                launchSingleTop = true
-                            }
+                // 处理完成导航的 one-shot：pendingProcessResultId 由初始 processing 成功结束时产生，
+                // 与 slices 持久业务状态解耦。观察一次导航进 preview 后 ack 清空；
+                // 返回后旧 slices 不再把用户弹回 preview；配置重建/重组合不重放；
+                // 手动切片编辑不产生新 pending → 不误导航。失败不产生 pending → 不导航。
+                LaunchedEffect(pendingProcessResultId) {
+                    val id = pendingProcessResultId
+                    if (id != null) {
+                        nav.navigate("preview") {
+                            launchSingleTop = true
                         }
+                        viewModel.ackProcessResult(id)
                     }
                 }
 

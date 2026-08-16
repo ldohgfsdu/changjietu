@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.changjietu.app.core.EditorState
 import com.changjietu.app.core.ProcessErrorMessages
 import com.changjietu.app.core.ProcessSettings
+import com.changjietu.app.core.ProcessTransition
 import com.changjietu.app.core.ShareDelivery
 import com.changjietu.app.core.SourceInfo
 import com.changjietu.app.core.UriAccessSource
@@ -63,6 +64,10 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     private val _pendingShareId = MutableStateFlow<Long?>(null)
     val pendingShareId: StateFlow<Long?> = _pendingShareId.asStateFlow()
 
+    /** 处理完成的一次性导航契约（C2.3）：仅初始 processing 成功结束时产生新 pending。 */
+    private val processTransition = ProcessTransition()
+    val pendingProcessResultId: StateFlow<Long?> = processTransition.pending
+
     /** 本实例是否已消费过分享（配置重建去重护栏）。 */
     fun hasConsumedShare(): Boolean = shareDelivery.consumed
 
@@ -86,6 +91,11 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     fun ackSharePending(id: Long) {
         shareDelivery.ack(id)
         if (shareDelivery.pendingId == null) _pendingShareId.value = null
+    }
+
+    /** UI 在完成 preview 导航后消费处理完成事件；仅匹配当前 pending 才生效。 */
+    fun ackProcessResult(id: Long) {
+        processTransition.ack(id)
     }
 
     /** 用户 Photo Picker 选图入口。 */
@@ -215,6 +225,8 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val state = withContext(Dispatchers.IO) { processInternal(srcInfo, s) }
                 _editor.value = state
+                // 一次性导航事件：仅初始 processing 成功结束时产生；手动切片编辑不产生。
+                processTransition.markCompleted()
                 recentStore.add(srcInfo.uri, srcInfo.width, srcInfo.height, state.slices.size)
                 _recents.value = recentStore.list()
             } catch (e: Exception) {
