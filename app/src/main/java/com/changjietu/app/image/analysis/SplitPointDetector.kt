@@ -32,7 +32,7 @@ object SplitPointDetector {
     fun plan(
         contentHeight: Int,
         targetSliceHeight: Int = 2200,
-        overlap: Int = 120,
+        overlap: Int = 0,
         rowEnergy: FloatArray? = null,
         searchWindow: Int = 220,
         minSlices: Int = 1,
@@ -41,7 +41,7 @@ object SplitPointDetector {
     ): SplitPlan {
         require(contentHeight > 0)
         val target = targetSliceHeight.coerceIn(400, 8000)
-        val ov = overlap.coerceIn(100, 160)
+        val ov = overlap.coerceIn(0, 160)
         val hardMax = maxSlices.coerceAtLeast(minSlices).coerceAtLeast(1)
 
         if (contentHeight <= target) {
@@ -184,7 +184,7 @@ object SplitPointDetector {
                         val actualPrev = ranges[ranges.size - 2]
                         val actualNext = ranges[ranges.size - 1]
                         val actualOverlap = actualPrev.last - actualNext.first + 1
-                        check(actualOverlap in 100..160) {
+                        check(actualOverlap == ov) {
                             "Tail Rebalance broke overlap contract: $actualOverlap"
                         }
                         check(actualNext.first > actualPrev.first) {
