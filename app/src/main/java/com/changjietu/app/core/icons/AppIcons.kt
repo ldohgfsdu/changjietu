@@ -34,6 +34,26 @@ object AppIcons {
         )
     }
 
+    // 结果页工具栏的轻量图标：使用本地矢量，避免重新引入 material-icons-extended。
+    val Expand: ImageVector by lazy {
+        vector("AppIcons.Expand", "M4 10V4h6v2H6v4H4zm10-6h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z")
+    }
+    val Plus: ImageVector by lazy {
+        vector("AppIcons.Plus", "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
+    }
+    val ChevronUp: ImageVector by lazy {
+        vector("AppIcons.ChevronUp", "M12 8l6 6-1.41 1.41L12 10.83l-4.59 4.58L6 14z")
+    }
+    val ChevronDown: ImageVector by lazy {
+        vector("AppIcons.ChevronDown", "M6 10l1.41-1.41L12 13.17l4.59-4.58L18 10l-6 6z")
+    }
+    val MoreVert: ImageVector by lazy {
+        vector("AppIcons.MoreVert", "M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z")
+    }
+    val Download: ImageVector by lazy {
+        vector("AppIcons.Download", "M5 20h14v-2H5v2zm7-3 5-5-1.41-1.41L13 13.17V3h-2v10.17l-2.59-2.58L7 12l5 5z")
+    }
+
     private fun vector(name: String, pathData: String): ImageVector =
         ImageVector.Builder(
             name = name,
