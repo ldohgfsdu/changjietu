@@ -237,7 +237,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             val next = transform(current)
             next.copy(
                 targetHeight = next.targetHeight.coerceIn(400, displaySpec.maxSliceHeightPx),
-                overlap = next.overlap.coerceIn(100, 160),
+                overlap = next.overlap.coerceIn(0, 160),
             )
         }
         // 解耦：裁边/高度/重叠变化都不清空 manualCuts（source 坐标），由映射层过滤越界点。
