@@ -37,8 +37,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button as MaterialButton
 import androidx.compose.material3.ButtonDefaults as MaterialButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -508,99 +506,74 @@ private fun BottomActions(
     onZip: () -> Unit,
     onShare: () -> Unit,
 ) {
-    var moreExpanded by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(enabled) {
-        if (!enabled) moreExpanded = false
-    }
+    // 三个可见操作，单行紧凑布局。禁止把保存或 ZIP 藏进无文字图标/菜单。
     Surface(color = MiuixTheme.colorScheme.surface) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             MaterialButton(
                 onClick = onShare,
                 enabled = enabled,
-                shape = RoundedCornerShape(13.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp),
                 colors = MaterialButtonDefaults.buttonColors(
                     containerColor = MiuixTheme.colorScheme.primary,
                     contentColor = Color.White,
                     disabledContainerColor = MiuixTheme.colorScheme.surfaceVariant,
                     disabledContentColor = MiuixTheme.colorScheme.onBackgroundVariant,
                 ),
-                modifier = Modifier.weight(1f).height(48.dp),
+                modifier = Modifier.weight(1.22f).height(48.dp),
             ) {
                 if (busy) {
                     androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,
                         color = Color.White,
                     )
-                } else {
-                    Icon(
-                        Icons.Default.Share,
-                        contentDescription = null,
-                        tint = if (enabled) Color.White else MiuixTheme.colorScheme.onBackgroundVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
+                    Spacer(Modifier.width(4.dp))
                 }
-                Spacer(Modifier.width(8.dp))
                 Text(
                     "分享 ${selectedCount} 张",
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     color = if (enabled) Color.White else MiuixTheme.colorScheme.onBackgroundVariant,
                     maxLines = 1,
+                    softWrap = false,
                 )
             }
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .clickable(enabled = enabled, onClickLabel = "保存到相册", onClick = onSave),
-                contentAlignment = Alignment.Center,
+            MaterialButton(
+                onClick = onSave,
+                enabled = enabled,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp),
+                colors = MaterialButtonDefaults.buttonColors(
+                    containerColor = MiuixTheme.colorScheme.surfaceVariant,
+                    contentColor = MiuixTheme.colorScheme.onBackground,
+                    disabledContainerColor = MiuixTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MiuixTheme.colorScheme.onBackgroundVariant,
+                ),
+                modifier = Modifier.weight(1f).height(48.dp),
             ) {
-                Icon(
-                    AppIcons.Download,
-                    contentDescription = "保存到相册",
-                    tint = MiuixTheme.colorScheme.onBackgroundVariant,
-                    modifier = Modifier.size(23.dp),
-                )
+                Text("保存相册", fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable(
-                            enabled = enabled,
-                            onClickLabel = "更多导出操作",
-                            onClick = { moreExpanded = true },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        AppIcons.MoreVert,
-                        contentDescription = "更多导出操作",
-                        tint = MiuixTheme.colorScheme.onBackgroundVariant,
-                        modifier = Modifier.size(23.dp),
-                    )
-                }
-                DropdownMenu(
-                    expanded = moreExpanded,
-                    onDismissRequest = { moreExpanded = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("导出 ZIP") },
-                        onClick = {
-                            moreExpanded = false
-                            onZip()
-                        },
-                    )
-                }
+            MaterialButton(
+                onClick = onZip,
+                enabled = enabled,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp),
+                colors = MaterialButtonDefaults.buttonColors(
+                    containerColor = MiuixTheme.colorScheme.surfaceVariant,
+                    contentColor = MiuixTheme.colorScheme.onBackground,
+                    disabledContainerColor = MiuixTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MiuixTheme.colorScheme.onBackgroundVariant,
+                ),
+                modifier = Modifier.weight(0.91f).height(48.dp),
+            ) {
+                Text("打包 ZIP", fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
         }
     }

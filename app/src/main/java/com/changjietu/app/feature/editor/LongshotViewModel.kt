@@ -19,6 +19,7 @@ import com.changjietu.app.core.UriAccessSource
 import com.changjietu.app.core.UriPersistencePolicy
 import com.changjietu.app.core.ZipNameSanitizer
 import com.changjietu.app.feature.export.ExportRepository
+import com.changjietu.app.feature.export.OrderedSlices
 import com.changjietu.app.feature.export.SaveSummary
 import com.changjietu.app.feature.export.SavedZip
 import com.changjietu.app.feature.export.SliceZipper
@@ -29,6 +30,7 @@ import com.changjietu.app.image.analysis.QualityAnalyzer
 import com.changjietu.app.image.analysis.SplitPointDetector
 import com.changjietu.app.image.processing.BitmapRegionSource
 import com.changjietu.app.image.processing.ImageSplitter
+import com.changjietu.app.image.processing.SliceGeometry
 import com.changjietu.app.image.processing.OverviewRenderer
 import com.changjietu.app.image.processing.RegionDecoderUtil
 import com.changjietu.app.image.processing.SliceOutput
@@ -237,7 +239,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             val next = transform(current)
             next.copy(
                 targetHeight = next.targetHeight.coerceIn(400, displaySpec.maxSliceHeightPx),
-                overlap = next.overlap.coerceIn(100, 160),
+                overlap = next.overlap.coerceIn(0, 160),
             )
         }
         // 解耦：裁边/高度/重叠变化都不清空 manualCuts（source 坐标），由映射层过滤越界点。
@@ -526,6 +528,10 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     rowEnergy = contentEnergy,
                 )
             }
+            if (s.overlap == 0) {
+                // 初始计划必须完整覆盖所有源图行且严格无重复。
+                SliceGeometry.requireNoOverlapCoverage(plan.ranges, contentH)
+            }
             val outDir = File(app.cacheDir, "slices/${System.currentTimeMillis()}").also {
                 it.mkdirs()
             }
@@ -751,7 +757,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectedSlices(): List<SliceOutput> {
         val ed = _editor.value ?: return emptyList()
-        return ed.selectedIndices.sorted().mapNotNull { ed.slices.getOrNull(it) }
+        return OrderedSlices.ascending(ed.selectedIndices.sorted().mapNotNull { ed.slices.getOrNull(it) })
     }
 
     fun saveToGallery(onResult: (Result<SaveSummary>) -> Unit) {

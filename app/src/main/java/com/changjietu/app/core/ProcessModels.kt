@@ -14,7 +14,7 @@ enum class ProcessMode {
 data class ProcessSettings(
     val mode: ProcessMode = ProcessMode.FOR_AI,
     val targetHeight: Int = 2200,
-    val overlap: Int = 120,
+    val overlap: Int = 0,
     val cropMargins: Boolean = true,
     val removeStickyHeader: Boolean = false, // phase-2, always false in MVP
     val jpegQuality: Int = 95,

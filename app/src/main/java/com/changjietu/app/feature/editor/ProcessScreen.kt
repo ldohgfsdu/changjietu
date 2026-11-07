@@ -494,19 +494,19 @@ private fun OverlapControl(
         ) {
             Column(Modifier.weight(1f)) {
                 Text("图片重叠", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                Text("保留连续阅读上下文", fontSize = 13.sp, color = caption)
+                Text(if (settings.overlap == 0) "无重复：严格沿蓝色切线分割" else "重叠 ${settings.overlap}px：相邻切片会重复这一段内容", fontSize = 13.sp, color = caption)
             }
             PxField(
                 value = settings.overlap,
-                min = 100,
+                min = 0,
                 max = 160,
                 onValueChange = onChange,
             )
         }
         ThumbSlider(
-            value = settings.overlap.coerceIn(100, 160).toFloat(),
+            value = settings.overlap.coerceIn(0, 160).toFloat(),
             onValueChange = { onChange(it.toInt()) },
-            min = 100f,
+            min = 0f,
             max = 160f,
         )
     }
@@ -612,7 +612,7 @@ private fun MoreOptions(
                 onCheckedChange = { checked -> onChange { it.copy(drawBadge = checked) } },
             )
             Text(
-                "当前裁切设置：保留重叠 · 自动编号",
+                if (settings.overlap == 0) "当前裁切设置：严格按线分割 · 无重叠 · 自动编号" else "当前裁切设置：重叠 ${settings.overlap}px · 自动编号",
                 fontSize = 13.sp,
                 color = caption,
                 modifier = Modifier.padding(vertical = 6.dp),
