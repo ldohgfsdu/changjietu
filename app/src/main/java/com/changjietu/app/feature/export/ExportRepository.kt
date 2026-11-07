@@ -43,7 +43,7 @@ class ExportRepository(private val context: Context) {
         require(slices.isNotEmpty()) { "no slices" }
         var saved = 0
         var failed = 0
-        for (slice in slices) {
+        for (slice in OrderedSlices.ascending(slices)) {
             if (saveOneToGallery(slice.file, slice.file.name, albumName)) {
                 saved++
             } else {
@@ -202,7 +202,7 @@ class ExportRepository(private val context: Context) {
 
     fun buildShareIntent(slices: List<SliceOutput>): Intent {
         require(slices.isNotEmpty()) { "no slices to share" }
-        val uris = slices.map { slice ->
+        val uris = OrderedSlices.ascending(slices).map { slice ->
             FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
