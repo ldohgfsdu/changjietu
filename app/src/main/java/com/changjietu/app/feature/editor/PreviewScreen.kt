@@ -214,7 +214,7 @@ fun PreviewScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             SmallTopAppBar(
-                title = "剪辑与预览",
+                title = "切片结果",
                 color = MiuixTheme.colorScheme.background,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -249,6 +249,7 @@ fun PreviewScreen(
                 BottomActions(
                     enabled = ed.selectedIndices.isNotEmpty() && !ed.isProcessing && !busy,
                     busy = busy,
+                    selectedCount = ed.selectedIndices.size,
                     onSave = ::saveSelected,
                     onZip = {
                         zipName = viewModel.defaultZipName()
@@ -313,7 +314,7 @@ fun PreviewScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "屏幕 ${displaySpec.shortSidePx} × ${displaySpec.longSidePx} · ${ed.slices.size} 张",
+                        "已生成 ${ed.slices.size} 张 · 已选择 ${ed.selectedIndices.size}/${ed.slices.size}",
                         fontSize = 12.sp,
                         color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         maxLines = 1,
@@ -321,11 +322,6 @@ fun PreviewScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(
-                    "已选 ${ed.selectedIndices.size}",
-                    fontSize = 11.sp,
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                )
             }
             ed.statusMessage?.let {
                 Text(it, fontSize = 11.sp, color = MiuixTheme.colorScheme.primary)
@@ -338,6 +334,32 @@ fun PreviewScreen(
             }
 
             Spacer(Modifier.height(6.dp))
+            val detailOverview by viewModel.detailOverview.collectAsStateWithLifecycle()
+            var showDetail by remember { mutableStateOf(false) }
+            var detailTop by remember { mutableStateOf(0) }
+            if (showDetail) {
+                DetailEditorDialog(
+                    editor = ed,
+                    detailOverview = detailOverview,
+                    detailTop = detailTop,
+                    windowH = displaySpec.longSidePx.coerceAtLeast(1),
+                    enabled = !ed.isProcessing && !busy,
+                    onPrev = {
+                        detailTop = (detailTop - displaySpec.longSidePx).coerceAtLeast(0)
+                        viewModel.loadDetailWindow(detailTop, displaySpec.longSidePx)
+                    },
+                    onNext = {
+                        detailTop = (detailTop + displaySpec.longSidePx)
+                            .coerceAtMost((ed.contentHeight - displaySpec.longSidePx).coerceAtLeast(0))
+                        viewModel.loadDetailWindow(detailTop, displaySpec.longSidePx)
+                    },
+                    onPreviewCut = viewModel::previewCut,
+                    onPreviewCrop = viewModel::previewCrop,
+                    onCommit = viewModel::commitCuts,
+                    onAddCutPoint = viewModel::addCutPoint,
+                    onDismiss = { showDetail = false },
+                )
+            }
             OverviewEditor(
                 overview = overview,
                 editor = ed,
@@ -349,6 +371,11 @@ fun PreviewScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.55f),
+                onDetailClick = {
+                    detailTop = 0
+                    viewModel.loadDetailWindow(0, displaySpec.longSidePx)
+                    showDetail = true
+                },
             )
             Spacer(Modifier.height(8.dp))
 
@@ -395,13 +422,12 @@ fun PreviewScreen(
                 ) {
                     Column(Modifier.padding(20.dp)) {
                         Text(
-                            "重命名压缩包",
+                            "导出 ZIP",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                         )
-                        Spacer(Modifier.height(6.dp))
                         Text(
-                            "保存到 Download/${ExportRepository.ALBUM_NAME}",
+                            "ZIP 文件名（保存到 Download/${ExportRepository.ALBUM_NAME}）",
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onBackgroundVariant,
                         )
@@ -431,7 +457,7 @@ fun PreviewScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text("导出")
+                                Text("保存 ZIP")
                             }
                         }
                     }
@@ -445,6 +471,7 @@ fun PreviewScreen(
 private fun BottomActions(
     enabled: Boolean,
     busy: Boolean,
+    selectedCount: Int,
     onSave: () -> Unit,
     onZip: () -> Unit,
     onShare: () -> Unit,
@@ -459,11 +486,11 @@ private fun BottomActions(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Button(
-                onClick = onSave,
+                onClick = onShare,
                 enabled = enabled,
                 modifier = Modifier
-                    .weight(1.2f)
-                    .height(46.dp),
+                    .weight(1.4f)
+                    .height(48.dp),
             ) {
                 if (busy) {
                     androidx.compose.material3.CircularProgressIndicator(
@@ -472,19 +499,85 @@ private fun BottomActions(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("保存到相册")
+                Text("分享所选 · $selectedCount 张")
             }
             TextButton(
-                text = "重命名 ZIP",
+                text = "保存到相册",
+                onClick = onSave,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "导出 ZIP",
                 onClick = onZip,
                 enabled = enabled,
                 modifier = Modifier.weight(0.95f),
             )
-            IconButton(
-                onClick = onShare,
-                enabled = enabled,
-            ) {
-                Icon(Icons.Default.Share, contentDescription = "分享所选切片")
+        }
+    }
+}
+
+@Composable
+private fun DetailEditorDialog(
+    editor: com.changjietu.app.core.EditorState,
+    detailOverview: OverviewState?,
+    detailTop: Int,
+    windowH: Int,
+    enabled: Boolean,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onPreviewCut: (Int, Int) -> Unit,
+    onPreviewCrop: (Int, Int) -> Unit,
+    onCommit: () -> Unit,
+    onAddCutPoint: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        ChangjietuTheme {
+            Surface(color = MiuixTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize()) {
+                    SmallTopAppBar(
+                        title = "精细编辑",
+                        color = MiuixTheme.colorScheme.background,
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(MiuixIcons.ArrowBack, contentDescription = "关闭")
+                            }
+                        },
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(text = "上一区域", onClick = onPrev)
+                        Text(
+                            "高清区域（窗口分块解码）",
+                            fontSize = 12.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        )
+                        TextButton(text = "下一区域", onClick = onNext)
+                    }
+                    OverviewEditor(
+                        overview = detailOverview,
+                        editor = editor,
+                        enabled = enabled,
+                        onPreviewCut = onPreviewCut,
+                        onPreviewCrop = onPreviewCrop,
+                        onCommit = onCommit,
+                        onAddCutPoint = onAddCutPoint,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        windowTop = detailTop,
+                        windowHeight = windowH,
+                    )
+                }
             }
         }
     }
@@ -592,23 +685,29 @@ private fun SliceCard(
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .size(26.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (selected) MiuixTheme.colorScheme.primary else Color.Black.copy(alpha = 0.32f),
-                        )
-                        .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                        .padding(4.dp)
+                        .size(48.dp)
                         .clickable(onClick = onToggle),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (selected) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "已选择",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp),
-                        )
+                    Box(
+                        Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (selected) MiuixTheme.colorScheme.primary else Color.Black.copy(alpha = 0.32f),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (selected) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = "已选择",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                 }
                 Box(
@@ -643,7 +742,7 @@ private fun SliceCard(
                     )
                 }
                 if (canMerge) {
-                    IconButton(onClick = onMerge, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onMerge, modifier = Modifier.size(48.dp)) {
                         Icon(
                             AppIcons.CallMerge,
                             contentDescription = "与下一片合并",
@@ -652,7 +751,7 @@ private fun SliceCard(
                     }
                 }
                 if (canDelete) {
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "删除此片",

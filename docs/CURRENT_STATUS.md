@@ -123,6 +123,13 @@ P0-A：`previewManualCut` 用可见索引映射（`visibleSource`/`fullIndexOfVi
 - 构建门：`testDebugUnitTest` **137 用例 / 0 失败**、`assembleDebug`、`assembleRelease`（含 lintVital）PASS（JDK 17）。`lintDebug` 6 errors 系既有 `NewApi`（非本轮新增）未修
 - 运行态：隐藏切点拖动、手动裁边重切片一致性未真机验收
 
+### 2.9 结果页打磨（2026-11-07，仍未发版）
+
+P0 高清区域预览：`OverviewEditor` 增加 `windowTop/windowHeight` 窗口映射，`LongshotViewModel.loadDetailWindow` 按 content 窗口 `sample=1` 分块解码（不整图解码），「精细编辑」全屏 + 上/下一区域。P0 选择保护：同张数重切片保留 `selectedIndices`，张数变才全选并提示。P1 IA：标题「切片结果」、第二行「已生成 N 张·已选择 M/N」、分享主按钮「分享所选·N 张」、ZIP 文案改「导出 ZIP」、选择 26→48dp 热区、合并/删除 36→48dp、说明收至一行（顶/底=截取·蓝=切点）。
+
+- 构建门：`testDebugUnitTest` **137 用例 / 0 失败**、`assembleDebug`、`assembleRelease`（含 lintVital）PASS（JDK 17）。`lintDebug` 6 errors 系既有 `NewApi`（非本轮新增）未修
+- 运行态：精细编辑高清手感、窗口切换、选择保留未真机验收
+
 ---
 
 ## 3. 进行中 / 历史修复
@@ -157,10 +164,10 @@ P0-A：`previewManualCut` 用可见索引映射（`visibleSource`/`fullIndexOfVi
 |----|-----|
 | Release 产物 | `app/build/outputs/apk/release/app-release.apk` |
 | Release 交付 | `download/changjietu-0.2.0-release.apk`、`/sdcard/Download/changjietu-0.2.0-release.apk` |
-| Release 体积 | **1,571,355** bytes（2026-11-07 P0 修复轮） |
-| Release SHA-256 | `e767954676c0a2ed5a1a863b888518d450249e82b29d1a5ee12799c56965e1e6` |
-| Debug 体积 | **14,776,293** bytes（2026-11-07 P0 修复轮） |
-| Debug SHA-256 | `d125e443c9ae64bc5439268b5efc62be993edc6c9ca7b68dde1629a2f1e5b473` |
+| Release 体积 | **1,571,355** bytes（2026-11-07 结果页打磨轮） |
+| Release SHA-256 | `b096d11c59f980234983f0cb5ea8bc50087cdf05a88ed521b1e217949b251ec0` |
+| Debug 体积 | **14,776,293** bytes（2026-11-07 结果页打磨轮） |
+| Debug SHA-256 | `c476c1f6a143c37b3e35047dd9d61e2af89fb3c0f42f02bf59c800fbdec87d51` |
 | 测量日 | 2026-11-07 |
 | 环境 | JDK 17 · Gradle 8.11.1 · AGP 8.7.3 · Kotlin 2.0.21 |
 

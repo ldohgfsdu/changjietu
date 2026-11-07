@@ -78,12 +78,18 @@ fun OverviewEditor(
     onCommit: () -> Unit,
     onAddCutPoint: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    windowTop: Int = 0,
+    windowHeight: Int? = null,
+    onDetailClick: (() -> Unit)? = null,
 ) {
     var addMode by remember { mutableStateOf(false) }
-    val contentHeight = editor.contentHeight.coerceAtLeast(1)
+    val totalHeight = editor.contentHeight.coerceAtLeast(1)
+    val winTop = windowTop.coerceIn(0, (totalHeight - 1).coerceAtLeast(0))
+    val winH = (windowHeight ?: totalHeight).coerceIn(1, totalHeight)
+    val contentHeight = totalHeight
     val visibleCuts = editor.cutEnds
         .dropLast(1)
-        .filter { it > editor.cropTop && it < editor.cropBottom }
+        .filter { it in winTop..(winTop + winH) && it > editor.cropTop && it < editor.cropBottom }
 
     // 用普通 Column 而非 miuix Card：Card 内部 Column 按内容包裹高度，
     // weight(1f) 拿不到有界空间。这里根 Column 直接继承外部传入的有界高度。
@@ -98,6 +104,7 @@ fun OverviewEditor(
             addMode = addMode,
             enabled = enabled,
             onToggleAddMode = { addMode = !addMode },
+            onDetailClick = onDetailClick,
         )
         if (overview == null) {
             Box(
@@ -136,18 +143,18 @@ fun OverviewEditor(
                     Modifier
                         .fillMaxWidth()
                         .height(viewHeightDp.dp)
-                        .pointerInput(addMode, enabled, contentHeight, viewHeightPx) {
+                        .pointerInput(addMode, enabled, winTop, winH, viewHeightPx) {
                             if (!enabled) return@pointerInput
                             detectTapGestures(
                                 onTap = { tap ->
                                     if (!addMode) return@detectTapGestures
                                     onAddCutPoint(
-                                        (tap.y / viewHeightPx * contentHeight).roundToInt(),
+                                        (winTop + tap.y / viewHeightPx * winH).roundToInt(),
                                     )
                                 },
                                 onLongPress = { tap ->
                                     onAddCutPoint(
-                                        (tap.y / viewHeightPx * contentHeight).roundToInt(),
+                                        (winTop + tap.y / viewHeightPx * winH).roundToInt(),
                                     )
                                 },
                             )
@@ -162,17 +169,19 @@ fun OverviewEditor(
 
                     OverviewCanvas(
                         viewHeightPx = viewHeightPx,
-                        contentHeight = contentHeight,
+                        contentHeight = winH,
+                        windowTop = winTop,
                         cropTop = editor.cropTop,
                         cropBottom = editor.cropBottom,
                         cuts = visibleCuts,
                     )
 
-                    // 片段序号标签
+                    // 片段序号标签（仅窗口内边界）
                     val boundaries = listOf(editor.cropTop) + visibleCuts + listOf(editor.cropBottom)
                     for (i in 0 until boundaries.size - 1) {
                         val center = (boundaries[i] + boundaries[i + 1]) / 2f
-                        val yPx = center / contentHeight * viewHeightPx
+                        if (center < winTop || center > winTop + winH) continue
+                        val yPx = (center - winTop) / winH * viewHeightPx
                         SegmentLabel(
                             label = "%02d".format(i + 1),
                             yPx = yPx,
@@ -183,11 +192,11 @@ fun OverviewEditor(
                     val cropTopState = rememberUpdatedState(editor.cropTop)
                     val cropBottomState = rememberUpdatedState(editor.cropBottom)
                     VerticalDragHandle(
-                        yPx = editor.cropTop.toFloat() / contentHeight * viewHeightPx,
+                        yPx = (editor.cropTop.toFloat() - winTop) / winH * viewHeightPx,
                         color = CropLineColor,
                         enabled = enabled,
                         viewHeightPx = viewHeightPx,
-                        contentHeight = contentHeight,
+                        contentHeight = winH,
                         startValue = editor.cropTop,
                         handleSizePx = handleSizePx,
                         onDelta = { base, delta ->
@@ -200,11 +209,11 @@ fun OverviewEditor(
                         label = "顶",
                     )
                     VerticalDragHandle(
-                        yPx = editor.cropBottom.toFloat() / contentHeight * viewHeightPx,
+                        yPx = (editor.cropBottom.toFloat() - winTop) / winH * viewHeightPx,
                         color = CropLineColor,
                         enabled = enabled,
                         viewHeightPx = viewHeightPx,
-                        contentHeight = contentHeight,
+                        contentHeight = winH,
                         startValue = editor.cropBottom,
                         handleSizePx = handleSizePx,
                         onDelta = { base, delta ->
@@ -222,11 +231,11 @@ fun OverviewEditor(
                         val cutIndex = editor.cutEnds.indexOf(end)
                         if (cutIndex >= 0) {
                             VerticalDragHandle(
-                                yPx = end.toFloat() / contentHeight * viewHeightPx,
+                                yPx = (end.toFloat() - winTop) / winH * viewHeightPx,
                                 color = CutLineColor,
                                 enabled = enabled,
                                 viewHeightPx = viewHeightPx,
-                                contentHeight = contentHeight,
+                                contentHeight = winH,
                                 startValue = end,
                                 handleSizePx = handleSizePx,
                                 onDelta = { base, delta ->
@@ -241,7 +250,7 @@ fun OverviewEditor(
             }
         }
         Text(
-            "拖空白处上下滑动预览。拖 ⇅ 调整切点：向下 = 上片多一点、下片少一点。长按长图新增切入点。橙色手柄是整体截取范围。",
+            "拖空白处浏览 · 拖 ⇅ 调切点 · 长按加切点 · 橙色顶/底=截取范围·蓝色=切点",
             color = MiuixTheme.colorScheme.onBackgroundVariant,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             fontSize = 11.sp,
@@ -255,6 +264,7 @@ private fun OverviewHeader(
     addMode: Boolean,
     enabled: Boolean,
     onToggleAddMode: () -> Unit,
+    onDetailClick: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
@@ -270,6 +280,13 @@ private fun OverviewHeader(
                 fontSize = 11.sp,
             )
         }
+        if (onDetailClick != null) {
+            TextButton(
+                text = "精细编辑",
+                onClick = onDetailClick,
+                enabled = enabled,
+            )
+        }
         TextButton(
             text = if (addMode) "取消新增" else "＋ 新增切入点",
             onClick = onToggleAddMode,
@@ -282,6 +299,7 @@ private fun OverviewHeader(
 private fun OverviewCanvas(
     viewHeightPx: Float,
     contentHeight: Int,
+    windowTop: Int,
     cropTop: Int,
     cropBottom: Int,
     cuts: List<Int>,
@@ -290,25 +308,25 @@ private fun OverviewCanvas(
         val w = size.width
         // 与手柄/手势统一使用 viewHeightPx，避免 Canvas 实际像素与理论值有偏差时线条错位。
         val h = viewHeightPx
-        val topY = cropTop.toFloat() / contentHeight * h
-        val bottomY = cropBottom.toFloat() / contentHeight * h
+        val topY = (cropTop.toFloat() - windowTop) / contentHeight * h
+        val bottomY = (cropBottom.toFloat() - windowTop) / contentHeight * h
         // 裁掉的区域压暗
         drawRect(
             Color.Black.copy(alpha = 0.45f),
             Offset(0f, 0f),
-            Size(w, topY.coerceAtLeast(0f)),
+            Size(w, topY.coerceIn(0f, h)),
         )
         drawRect(
             Color.Black.copy(alpha = 0.45f),
-            Offset(0f, bottomY),
-            Size(w, (h - bottomY).coerceAtLeast(0f)),
+            Offset(0f, bottomY.coerceIn(0f, h)),
+            Size(w, (h - bottomY.coerceIn(0f, h)).coerceAtLeast(0f)),
         )
         // 整体截取范围边界
-        drawLine(CropLineColor, Offset(0f, topY), Offset(w, topY), strokeWidth = 3.dp.toPx())
-        drawLine(CropLineColor, Offset(0f, bottomY), Offset(w, bottomY), strokeWidth = 3.dp.toPx())
+        drawLine(CropLineColor, Offset(0f, topY.coerceIn(0f, h)), Offset(w, topY.coerceIn(0f, h)), strokeWidth = 3.dp.toPx())
+        drawLine(CropLineColor, Offset(0f, bottomY.coerceIn(0f, h)), Offset(w, bottomY.coerceIn(0f, h)), strokeWidth = 3.dp.toPx())
         // 自动切分线
         for (end in cuts) {
-            val y = end.toFloat() / contentHeight * h
+            val y = (end.toFloat() - windowTop) / contentHeight * h
             drawLine(CutLineColor, Offset(0f, y), Offset(w, y), strokeWidth = 3.dp.toPx())
         }
     }

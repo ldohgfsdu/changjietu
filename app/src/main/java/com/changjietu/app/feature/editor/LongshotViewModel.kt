@@ -3,6 +3,7 @@ package com.changjietu.app.feature.editor
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -116,6 +117,46 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     /** 结果页剪辑总览：裁边后的内容区域。只在初始切分成功时生成，手动编辑不重建。 */
     private val _overview = MutableStateFlow<OverviewState?>(null)
     val overview: StateFlow<OverviewState?> = _overview.asStateFlow()
+
+    /** 精细编辑高清区域（窗口分块解码，sample=1，不整图解码）。 */
+    private val _detailOverview = MutableStateFlow<OverviewState?>(null)
+    val detailOverview: StateFlow<OverviewState?> = _detailOverview.asStateFlow()
+    private var detailJob: Job? = null
+
+    /** 按 content 窗口加载高清条带（供精细编辑全屏使用）。 */
+    fun loadDetailWindow(top: Int, height: Int) {
+        val ed = _editor.value ?: return
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            val rendered: OverviewState? = try {
+                withContext(Dispatchers.IO) {
+                    val app = getApplication<Application>()
+                    val region = app.contentResolver.openInputStream(ed.source.uri)?.use {
+                        BitmapRegionSource.open(it)
+                    } ?: return@withContext null
+                    val m = ed.appliedMargins
+                    val w = ed.contentWidth
+                    val h = height.coerceIn(1, ed.contentHeight)
+                    val t = top.coerceIn(0, (ed.contentHeight - h).coerceAtLeast(0))
+                    val handle = region.decodeRegion(
+                        m.left,
+                        m.top + t,
+                        m.left + w,
+                        m.top + t + h,
+                        sampleSize = 1,
+                    )
+                    val bmp = handle?.bitmapOrNull
+                    val img = bmp?.asImageBitmap()
+                    handle?.close()
+                    region.close()
+                    if (img != null) OverviewState(bitmap = img, contentWidth = w, contentHeight = h) else null
+                }
+            } catch (_: Exception) {
+                null
+            }
+            if (rendered != null) _detailOverview.value = rendered
+        }
+    }
 
     /** 处理页切线预览：整图分块总览。高度/重叠只改切线，不重新解码。 */
     private val _previewBitmap = MutableStateFlow<PreviewBitmapState>(PreviewBitmapState.Empty)
@@ -653,14 +694,23 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                                 rowEnergy = ed.source.rowEnergy,
                             ),
                         )
+                        val preserved = if (slices.size == ed.slices.size) {
+                            ed.selectedIndices.filter { it in slices.indices }.toSet()
+                        } else {
+                            slices.indices.toSet()
+                        }
                         ed.copy(
                             cutEnds = SplitPointDetector.cutEndsFromRanges(ranges, cropBottom),
                             cropTop = cropTop,
                             cropBottom = cropBottom,
                             slices = slices,
-                            selectedIndices = slices.indices.toSet(),
+                            selectedIndices = preserved,
                             isProcessing = false,
-                            statusMessage = "已更新为 ${slices.size} 张",
+                            statusMessage = if (slices.size == ed.slices.size) {
+                                "已更新为 ${slices.size} 张"
+                            } else {
+                                "已更新为 ${slices.size} 张（已全选）"
+                            },
                         )
                     }
                 }
