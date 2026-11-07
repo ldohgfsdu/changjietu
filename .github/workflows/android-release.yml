@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,11 +30,11 @@ jobs:
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
           chmod +x gradlew tools/aapt2
       - uses: gradle/actions/setup-gradle@v4
-      - name: Unit tests, debug build and lint
-        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --no-daemon
+      - name: Unit tests, debug build and release vital lint
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintVitalRelease --no-daemon
 
   publish:
-    if: github.ref == 'refs/heads/master' && contains(github.event.head_commit.message, '[publish-v0.2.1]')
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-v0.2.1]'))
     needs: verify
     runs-on: ubuntu-latest
     permissions:
