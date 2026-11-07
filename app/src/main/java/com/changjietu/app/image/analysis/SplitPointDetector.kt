@@ -132,7 +132,7 @@ object SplitPointDetector {
         }
 
         // 合并过短末片
-        if (ranges.size >= 2) {
+        if (ranges.size >= 2 && ov > 0) {
             val last = ranges.last()
             if (last.height() < target / 3) {
                 val prev = ranges[ranges.size - 2]
