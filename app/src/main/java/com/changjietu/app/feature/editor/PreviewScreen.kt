@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button as MaterialButton
 import androidx.compose.material3.ButtonDefaults as MaterialButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -284,20 +286,19 @@ fun PreviewScreen(
             }
 
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().height(56.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     Text(
-                        "原图 ${ed.source.width} × ${ed.source.height}",
-                        fontSize = 13.sp,
+                        "${ed.slices.size} 张切片",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
                         maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "已生成 ${ed.slices.size} 张 · 已选择 ${ed.selectedIndices.size}/${ed.slices.size}",
+                        "${ed.source.width} × ${ed.source.height} · 已选 ${ed.selectedIndices.size}/${ed.slices.size}",
                         fontSize = 12.sp,
                         color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         maxLines = 1,
@@ -309,8 +310,8 @@ fun PreviewScreen(
                     val allSelected = ed.selectedIndices.size == ed.slices.size
                     Box(
                         modifier = Modifier
-                            .width(88.dp)
                             .height(48.dp)
+                            .width(88.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable(enabled = !ed.isProcessing && !busy) {
                                 if (allSelected) viewModel.clearSliceSelection()
@@ -374,7 +375,7 @@ fun PreviewScreen(
                     onPreviewCrop = viewModel::previewCrop,
                     onCommit = viewModel::commitCuts,
                     onAddCutPoint = viewModel::addCutPoint,
-                    modifier = Modifier.fillMaxWidth().weight(0.48f),
+                    modifier = Modifier.fillMaxWidth().weight(0.59f),
                     onDetailClick = {
                         detailTop = 0
                         viewModel.loadDetailWindow(0, displaySpec.longSidePx)
@@ -389,18 +390,30 @@ fun PreviewScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("切片列表", fontWeight = FontWeight.Medium)
-                    TextButton(
-                        text = "展开剪辑",
-                        onClick = { editingExpanded = true },
-                        enabled = !ed.isProcessing && !busy,
-                    )
+                    Text("切片列表", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .clickable(
+                                enabled = !ed.isProcessing && !busy,
+                                onClickLabel = "展开剪辑预览",
+                            ) { editingExpanded = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            AppIcons.ChevronDown,
+                            contentDescription = "展开剪辑预览",
+                            tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
             }
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                modifier = Modifier.weight(if (editingExpanded) 0.52f else 1f),
+                modifier = Modifier.weight(if (editingExpanded) 0.41f else 1f),
                 contentPadding = PaddingValues(bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -495,25 +508,31 @@ private fun BottomActions(
     onZip: () -> Unit,
     onShare: () -> Unit,
 ) {
+    var moreExpanded by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(enabled) {
+        if (!enabled) moreExpanded = false
+    }
     Surface(color = MiuixTheme.colorScheme.surface) {
-        Column(
-            modifier = Modifier
+        Row(
+            Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             MaterialButton(
                 onClick = onShare,
                 enabled = enabled,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(13.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
                 colors = MaterialButtonDefaults.buttonColors(
                     containerColor = MiuixTheme.colorScheme.primary,
                     contentColor = Color.White,
                     disabledContainerColor = MiuixTheme.colorScheme.surfaceVariant,
                     disabledContentColor = MiuixTheme.colorScheme.onBackgroundVariant,
                 ),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier.weight(1f).height(48.dp),
             ) {
                 if (busy) {
                     androidx.compose.material3.CircularProgressIndicator(
@@ -521,26 +540,67 @@ private fun BottomActions(
                         strokeWidth = 2.dp,
                         color = Color.White,
                     )
-                    Spacer(Modifier.width(8.dp))
+                } else {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = null,
+                        tint = if (enabled) Color.White else MiuixTheme.colorScheme.onBackgroundVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
-                Text("分享所选 · $selectedCount 张", fontSize = 16.sp, color = if (enabled) Color.White else MiuixTheme.colorScheme.onBackgroundVariant)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "分享 ${selectedCount} 张",
+                    fontSize = 15.sp,
+                    color = if (enabled) Color.White else MiuixTheme.colorScheme.onBackgroundVariant,
+                    maxLines = 1,
+                )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = enabled, onClickLabel = "保存到相册", onClick = onSave),
+                contentAlignment = Alignment.Center,
             ) {
-                TextButton(
-                    text = "保存到相册",
-                    onClick = onSave,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                Icon(
+                    AppIcons.Download,
+                    contentDescription = "保存到相册",
+                    tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                    modifier = Modifier.size(23.dp),
                 )
-                TextButton(
-                    text = "导出 ZIP",
-                    onClick = onZip,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f).height(48.dp),
-                )
+            }
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            enabled = enabled,
+                            onClickLabel = "更多导出操作",
+                            onClick = { moreExpanded = true },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        AppIcons.MoreVert,
+                        contentDescription = "更多导出操作",
+                        tint = MiuixTheme.colorScheme.onBackgroundVariant,
+                        modifier = Modifier.size(23.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = moreExpanded,
+                    onDismissRequest = { moreExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("导出 ZIP") },
+                        onClick = {
+                            moreExpanded = false
+                            onZip()
+                        },
+                    )
+                }
             }
         }
     }
@@ -677,25 +737,21 @@ private fun SliceCard(
     onDelete: () -> Unit,
 ) {
     val borderColor = if (selected) {
-        MiuixTheme.colorScheme.primary
+        MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
     } else {
-        MiuixTheme.colorScheme.outline
+        MiuixTheme.colorScheme.outline.copy(alpha = 0.22f)
     }
     val percent = (slice.height * 100f / screenLongSide).toInt().coerceIn(1, 100)
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .border(
-                width = if (selected) 2.dp else 1.dp,
+                width = 1.dp,
                 color = borderColor,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
             ),
         insideMargin = PaddingValues(0.dp),
-        color = if (selected) {
-            MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.14f)
-        } else {
-            MiuixTheme.colorScheme.surface
-        },
+        color = MiuixTheme.colorScheme.surface,
     ) {
         Column {
             Box {
