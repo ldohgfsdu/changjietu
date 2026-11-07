@@ -3,6 +3,7 @@ package com.changjietu.app.feature.editor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -38,14 +39,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.changjietu.app.core.EditorState
+import com.changjietu.app.core.icons.AppIcons
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.icons.ArrowUpDown
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -96,9 +100,8 @@ fun OverviewEditor(
     // weight(1f) 拿不到有界空间。这里根 Column 直接继承外部传入的有界高度。
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MiuixTheme.colorScheme.surface)
-            .border(1.dp, MiuixTheme.colorScheme.outline, RoundedCornerShape(16.dp)),
+            .clip(RoundedCornerShape(14.dp))
+            .background(MiuixTheme.colorScheme.surface),
     ) {
         OverviewHeader(
             cutCount = visibleCuts.size,
@@ -251,12 +254,6 @@ fun OverviewEditor(
                 }
             }
         }
-        Text(
-            "拖空白处浏览 · 拖 ⇅ 调切点 · 长按加切点 · 橙色顶/底=截取范围·蓝色=切点",
-            color = MiuixTheme.colorScheme.onBackgroundVariant,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            fontSize = 11.sp,
-        )
     }
 }
 
@@ -269,33 +266,77 @@ private fun OverviewHeader(
     onDetailClick: (() -> Unit)? = null,
     onCollapse: (() -> Unit)? = null,
 ) {
-    // 双行布局防止精细编辑与新增切点在窄屏上把状态文字压到多行。
-    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("剪辑视图", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                Text("$cutCount 个切点", fontSize = 11.sp, color = MiuixTheme.colorScheme.onBackgroundVariant)
-            }
-            if (onDetailClick != null) {
-                TextButton(text = "精细编辑", onClick = onDetailClick, enabled = enabled)
-            }
-            if (onCollapse != null) {
-                TextButton(text = "收起", onClick = onCollapse, enabled = enabled)
-            }
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    // 单行工具栏，操作保持 48dp 触控区；辅助控件不占据图片高度。
+    Row(
+        Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
             Text(
-                if (addMode) "点按长图添加切点" else "拖动切线调整位置",
-                fontSize = 11.sp,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                modifier = Modifier.weight(1f),
+                "剪辑预览",
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                fontSize = 15.sp,
+                maxLines = 1,
             )
-            TextButton(
-                text = if (addMode) "完成新增" else "＋ 添加切点",
-                onClick = onToggleAddMode,
-                enabled = enabled,
+            Text(
+                if (addMode) "点按图片添加切点" else "$cutCount 条切线",
+                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                fontSize = 11.sp,
+                maxLines = 1,
             )
         }
+        if (onDetailClick != null) {
+            CompactEditorAction(
+                icon = AppIcons.Expand,
+                label = "精细编辑",
+                enabled = enabled,
+                onClick = onDetailClick,
+            )
+        }
+        CompactEditorAction(
+            icon = if (addMode) Icons.Default.Check else AppIcons.Plus,
+            label = if (addMode) "完成添加切点" else "添加切点",
+            enabled = enabled,
+            emphasized = addMode,
+            onClick = onToggleAddMode,
+        )
+        if (onCollapse != null) {
+            CompactEditorAction(
+                icon = AppIcons.ChevronUp,
+                label = "收起剪辑预览",
+                enabled = enabled,
+                onClick = onCollapse,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactEditorAction(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    emphasized: Boolean = false,
+) {
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(
+                enabled = enabled,
+                onClickLabel = label,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = if (enabled && emphasized) MiuixTheme.colorScheme.primary
+                else MiuixTheme.colorScheme.onBackgroundVariant,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 
