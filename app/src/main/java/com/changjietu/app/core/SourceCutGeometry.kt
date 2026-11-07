@@ -13,11 +13,46 @@ object SourceCutGeometry {
         contentTop: Int,
         contentHeight: Int,
         minSlicePx: Int = 50,
-    ): List<Int> = manualSource
+    ): List<Int> = visibleSource(manualSource, contentTop, contentHeight, minSlicePx)
         .map { it - contentTop }
-        .filter { it in minSlicePx..contentHeight }
-        .distinct()
-        .sorted()
+
+    /** 界面上实际可见的 source 切点（保留原顺序，隐藏点不参与索引）。 */
+    fun visibleSource(
+        manualSource: List<Int>,
+        contentTop: Int,
+        contentHeight: Int,
+        minSlicePx: Int = 50,
+    ): List<Int> = manualSource.filter { (it - contentTop) in minSlicePx..contentHeight }
+
+    /** 把可见索引映射回全列表下标；无对应时返回 -1。 */
+    fun fullIndexOfVisible(
+        manualSource: List<Int>,
+        visibleIndex: Int,
+        contentTop: Int,
+        contentHeight: Int,
+        minSlicePx: Int = 50,
+    ): Int {
+        val visible = visibleSource(manualSource, contentTop, contentHeight, minSlicePx)
+        if (visibleIndex !in visible.indices) return -1
+        return manualSource.indexOf(visible[visibleIndex])
+    }
+
+    /** 统一合法矩形约束：L+R ≤ W−minW，T+B ≤ H−minH（左/上优先）。 */
+    fun sanitizeMargins(
+        margins: com.changjietu.app.image.analysis.Margins,
+        width: Int,
+        height: Int,
+        minContentW: Int = 64,
+        minContentH: Int = 100,
+    ): com.changjietu.app.image.analysis.Margins {
+        val mw = minOf(minContentW, width)
+        val mh = minOf(minContentH, height)
+        val l = margins.left.coerceIn(0, (width - mw).coerceAtLeast(0))
+        val r = margins.right.coerceIn(0, (width - mw - l).coerceAtLeast(0))
+        val t = margins.top.coerceIn(0, (height - mh).coerceAtLeast(0))
+        val b = margins.bottom.coerceIn(0, (height - mh - t).coerceAtLeast(0))
+        return com.changjietu.app.image.analysis.Margins(l, t, r, b)
+    }
 
     fun conflicts(
         manualSource: List<Int>,

@@ -211,12 +211,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     fun updateManualMargins(transform: (Margins) -> Margins) {
         val src = _source.value ?: return
         val next = transform(_manualMargins.value ?: src.margins)
-        _manualMargins.value = next.copy(
-            left = next.left.coerceIn(0, src.width / 2),
-            right = next.right.coerceIn(0, src.width / 2),
-            top = next.top.coerceIn(0, src.height / 2),
-            bottom = next.bottom.coerceIn(0, src.height / 2),
-        )
+        _manualMargins.value = SourceCutGeometry.sanitizeMargins(next, src.width, src.height)
         publishPreviewPlan(src, _settings.value)
     }
 
@@ -232,14 +227,28 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         val plan = _previewPlan.value ?: return
         val currentSource = _manualCuts.value
             ?: plan.cutEnds.dropLast(1).map { it + plan.contentTop }
-        val cutsContent = currentSource.map { it - plan.contentTop }
-        if (cutIndex !in cutsContent.indices) return
+        val visibleSource = SourceCutGeometry.visibleSource(
+            currentSource,
+            plan.contentTop,
+            plan.contentHeight,
+            MIN_SLICE_PX,
+        )
+        if (cutIndex !in visibleSource.indices) return
+        val cutsContent = visibleSource.map { it - plan.contentTop }
         val minEnd = if (cutIndex == 0) MIN_SLICE_PX else cutsContent[cutIndex - 1] + MIN_SLICE_PX
         val maxEnd = cutsContent.getOrNull(cutIndex + 1)?.let { it - MIN_SLICE_PX }
             ?: (plan.contentHeight - MIN_SLICE_PX)
         if (maxEnd <= minEnd) return
+        val fullIndex = SourceCutGeometry.fullIndexOfVisible(
+            currentSource,
+            cutIndex,
+            plan.contentTop,
+            plan.contentHeight,
+            MIN_SLICE_PX,
+        )
+        if (fullIndex < 0) return
         val nextSource = currentSource.toMutableList()
-        nextSource[cutIndex] = SourceCutGeometry.sourceFromContent(
+        nextSource[fullIndex] = SourceCutGeometry.sourceFromContent(
             newContentEnd.coerceIn(minEnd, maxEnd),
             plan.contentTop,
         )
@@ -501,6 +510,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 cutEnds = cutEnds,
                 contentHeight = contentH,
                 contentWidth = contentW,
+                appliedMargins = margins,
                 slices = slices,
                 selectedIndices = slices.indices.toSet(),
                 isProcessing = false,
@@ -622,7 +632,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     val region = cr.openInputStream(ed.source.uri)?.use { BitmapRegionSource.open(it) }
                         ?: error("无法打开图片")
                     region.use { src ->
-                        val margins = if (ed.settings.cropMargins) ed.source.margins else Margins(0, 0, 0, 0)
+                        val margins = ed.appliedMargins
                         val plan = com.changjietu.app.image.analysis.SplitPlan(
                             contentHeight = ed.contentHeight,
                             targetSliceHeight = ed.settings.targetHeight,

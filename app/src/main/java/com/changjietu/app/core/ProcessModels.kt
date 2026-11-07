@@ -44,6 +44,8 @@ data class EditorState(
     /** 整体截取范围（content 坐标，含首不含尾）；头尾裁切手柄可拖动收缩。 */
     val cropTop: Int = 0,
     val cropBottom: Int = contentHeight,
+    /** 初次生成时实际使用的有效裁边（manual 优先）；重切片/导出沿用同一快照，不另推导。 */
+    val appliedMargins: Margins = Margins(0, 0, 0, 0),
     val slices: List<SliceOutput> = emptyList(),
     /** 预览页逐张选择；重新切片后默认全选。 */
     val selectedIndices: Set<Int> = slices.indices.toSet(),

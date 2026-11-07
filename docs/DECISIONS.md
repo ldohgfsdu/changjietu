@@ -202,6 +202,7 @@
 | 2026-11-07 | 记录 D-020（首页减法、处理页重组、切线预览；不改裁切算法） |
 | 2026-11-07 | 记录 D-021（生成前全屏切线编辑、文案/滑块/首页层级收口） |
 | 2026-11-07 | 记录 D-022（裁边/切线 source 坐标解耦、保守裁边、黄色框数值编辑） |
+| 2026-11-07 | 记录 D-023（GitHub 审查 P0-A/B/C） |
 
 ---
 
@@ -242,3 +243,13 @@
 | **状态** | Accepted |
 | **决策** | `manualCuts` 改为 source-Y 并抽 `SourceCutGeometry` 纯几何；`updateSettings` 不再清空切线（裁边开关/高度/重叠均保留，越界仅过滤+冲突提示）；新增 `manualMargins` 数值可编辑黄色框（开关保留、恢复检测值清空）；`MarginDetector` 加保守安全内边距（宽/50≤24、高/200≤16）。范围外：拖框、撤销重做、跨页面持久化、colMax 检测未做。 |
 | **依据** | 2026-11-07 第三轮评审：裁边开关重置切线记 P0，右 191px 误裁疑虑。`testDebugUnitTest` 135/0、`assembleDebug`/`Release` PASS；`lintDebug` 6 NewApi 既有。 |
+
+---
+
+## D-023 · GitHub 审查 P0-A/B/C
+
+| | |
+|--|--|
+| **状态** | Accepted |
+| **决策** | A 可见索引映射（隐藏切点不参与拖动）；B `appliedMargins` 快照供重切片沿用；C `sanitizeMargins` 统一矩形合法性。2D 校验、拖框、撤销/跨页持久化仍未做。 |
+| **依据** | GitHub 审查 c38f067 后 P0 清单。`testDebugUnitTest` 137/0、`assembleDebug`/`Release` PASS。 |

@@ -116,6 +116,13 @@ P0 解耦：`manualCuts` 改 source 坐标 + `SourceCutGeometry` 纯几何（JVM
 - 构建门：`testDebugUnitTest` **135 用例 / 0 失败**、`assembleDebug`、`assembleRelease`（含 lintVital）PASS（JDK 17）。`lintDebug` 6 errors 系既有 `NewApi`（非本轮新增）未修
 - 运行态：已连设备冒烟待补；保守量与冲突提示未真机验收
 
+### 2.8 GitHub 审查 P0 修复（2026-11-07，仍未发版）
+
+P0-A：`previewManualCut` 用可见索引映射（`visibleSource`/`fullIndexOfVisible`），隐藏点不参与拖动。P0-B：`EditorState.appliedMargins` 快照初次有效裁边，重切片沿用该快照，不再推导 `source.margins`。P0-C：`sanitizeMargins` 统一非法矩形（L+R≤W-64，T+B≤H-100）。2D colMax 校验、黄色拖框、撤销/跨页持久化未做。
+
+- 构建门：`testDebugUnitTest` **137 用例 / 0 失败**、`assembleDebug`、`assembleRelease`（含 lintVital）PASS（JDK 17）。`lintDebug` 6 errors 系既有 `NewApi`（非本轮新增）未修
+- 运行态：隐藏切点拖动、手动裁边重切片一致性未真机验收
+
 ---
 
 ## 3. 进行中 / 历史修复
@@ -150,10 +157,10 @@ P0 解耦：`manualCuts` 改 source 坐标 + `SourceCutGeometry` 纯几何（JVM
 |----|-----|
 | Release 产物 | `app/build/outputs/apk/release/app-release.apk` |
 | Release 交付 | `download/changjietu-0.2.0-release.apk`、`/sdcard/Download/changjietu-0.2.0-release.apk` |
-| Release 体积 | **1,571,355** bytes（2026-11-07 裁边/切线解耦轮） |
-| Release SHA-256 | `44b78f77fc7b8bdbf537d5249edf938450e98d801a28c52545181e453f37f458` |
-| Debug 体积 | **14,776,293** bytes（2026-11-07 裁边/切线解耦轮） |
-| Debug SHA-256 | `132e41149414ed6cb1681ff45f56ceeba4e144e4f8ae2f3e5ba54133a49a51da` |
+| Release 体积 | **1,571,355** bytes（2026-11-07 P0 修复轮） |
+| Release SHA-256 | `e767954676c0a2ed5a1a863b888518d450249e82b29d1a5ee12799c56965e1e6` |
+| Debug 体积 | **14,776,293** bytes（2026-11-07 P0 修复轮） |
+| Debug SHA-256 | `d125e443c9ae64bc5439268b5efc62be993edc6c9ca7b68dde1629a2f1e5b473` |
 | 测量日 | 2026-11-07 |
 | 环境 | JDK 17 · Gradle 8.11.1 · AGP 8.7.3 · Kotlin 2.0.21 |
 
