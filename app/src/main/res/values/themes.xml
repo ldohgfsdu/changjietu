@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Changjietu" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.Changjietu.Base" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
         <!-- 边到边：透明系统栏，图标深浅由 MainActivity 的 WindowInsetsControllerCompat 控制 -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:enforceStatusBarContrast">false</item>
-        <item name="android:enforceNavigationBarContrast">false</item>
+
     </style>
+    <style name="Theme.Changjietu" parent="Theme.Changjietu.Base" />
 </resources>
