@@ -509,8 +509,8 @@ private fun BottomActions(
     onShare: () -> Unit,
 ) {
     var moreExpanded by remember { mutableStateOf(false) }
-    if (!enabled && moreExpanded) {
-        androidx.compose.runtime.LaunchedEffect(enabled) { moreExpanded = false }
+    androidx.compose.runtime.LaunchedEffect(enabled) {
+        if (!enabled) moreExpanded = false
     }
     Surface(color = MiuixTheme.colorScheme.surface) {
         Row(
