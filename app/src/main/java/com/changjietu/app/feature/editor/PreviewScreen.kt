@@ -34,6 +34,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button as MaterialButton
+import androidx.compose.material3.ButtonDefaults as MaterialButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -98,6 +100,7 @@ fun PreviewScreen(
     val ed = editor
     val displaySpec = viewModel.displaySpec
     var busy by remember { mutableStateOf(false) }
+    var editingExpanded by rememberSaveable { mutableStateOf(true) }
     // 0=none, 1=保存图片, 2=打包 ZIP；rememberSaveable 保证权限弹窗期间旋转不丢待执行动作。
     var pendingPermissionKind by rememberSaveable { mutableIntStateOf(0) }
     var pendingZipName by rememberSaveable { mutableStateOf("") }
@@ -221,27 +224,6 @@ fun PreviewScreen(
                         Icon(MiuixIcons.ArrowBack, contentDescription = "返回")
                     }
                 },
-                actions = {
-                    if (ed != null && ed.slices.isNotEmpty()) {
-                        val allSelected = ed.selectedIndices.size == ed.slices.size
-                        TextButton(
-                            text = if (allSelected) "取消全选" else "全选",
-                            onClick = {
-                                if (allSelected) {
-                                    viewModel.clearSliceSelection()
-                                } else {
-                                    viewModel.selectAllSlices()
-                                }
-                            },
-                        )
-                    }
-                    IconButton(
-                        onClick = { launchShare(viewModel.shareIntent()) },
-                        enabled = ed != null && ed.selectedIndices.isNotEmpty() && !busy,
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = "分享所选切片")
-                    }
-                },
             )
         },
         bottomBar = {
@@ -322,10 +304,32 @@ fun PreviewScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (ed.slices.isNotEmpty()) {
+                    val allSelected = ed.selectedIndices.size == ed.slices.size
+                    Box(
+                        modifier = Modifier
+                            .width(88.dp)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(enabled = !ed.isProcessing && !busy) {
+                                if (allSelected) viewModel.clearSliceSelection()
+                                else viewModel.selectAllSlices()
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (allSelected) "取消全选" else "全选",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
-            ed.statusMessage?.let {
-                Text(it, fontSize = 11.sp, color = MiuixTheme.colorScheme.primary)
-            }
+            ed.statusMessage
+                ?.takeUnless { it.startsWith("已生成 ") || it.startsWith("已更新为 ") }
+                ?.let {
+                    Text(it, fontSize = 11.sp, color = MiuixTheme.colorScheme.primary)
+                }
             ed.error?.let {
                 Text(it, color = Color(0xFFB3261E), fontSize = 11.sp)
             }
@@ -360,28 +364,42 @@ fun PreviewScreen(
                     onDismiss = { showDetail = false },
                 )
             }
-            OverviewEditor(
-                overview = overview,
-                editor = ed,
-                enabled = !ed.isProcessing && !busy,
-                onPreviewCut = viewModel::previewCut,
-                onPreviewCrop = viewModel::previewCrop,
-                onCommit = viewModel::commitCuts,
-                onAddCutPoint = viewModel::addCutPoint,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.55f),
-                onDetailClick = {
-                    detailTop = 0
-                    viewModel.loadDetailWindow(0, displaySpec.longSidePx)
-                    showDetail = true
-                },
-            )
-            Spacer(Modifier.height(8.dp))
+            if (editingExpanded) {
+                OverviewEditor(
+                    overview = overview,
+                    editor = ed,
+                    enabled = !ed.isProcessing && !busy,
+                    onPreviewCut = viewModel::previewCut,
+                    onPreviewCrop = viewModel::previewCrop,
+                    onCommit = viewModel::commitCuts,
+                    onAddCutPoint = viewModel::addCutPoint,
+                    modifier = Modifier.fillMaxWidth().weight(0.48f),
+                    onDetailClick = {
+                        detailTop = 0
+                        viewModel.loadDetailWindow(0, displaySpec.longSidePx)
+                        showDetail = true
+                    },
+                    onCollapse = { editingExpanded = false },
+                )
+                Spacer(Modifier.height(8.dp))
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("切片列表", fontWeight = FontWeight.Medium)
+                    TextButton(
+                        text = "展开剪辑",
+                        onClick = { editingExpanded = true },
+                        enabled = !ed.isProcessing && !busy,
+                    )
+                }
+            }
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                modifier = Modifier.weight(0.45f),
+                modifier = Modifier.weight(if (editingExpanded) 0.52f else 1f),
                 contentPadding = PaddingValues(bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -477,42 +495,52 @@ private fun BottomActions(
     onShare: () -> Unit,
 ) {
     Surface(color = MiuixTheme.colorScheme.surface) {
-        Row(
-            Modifier
+        Column(
+            modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(
+            MaterialButton(
                 onClick = onShare,
                 enabled = enabled,
-                modifier = Modifier
-                    .weight(1.4f)
-                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = MaterialButtonDefaults.buttonColors(
+                    containerColor = MiuixTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                    disabledContainerColor = MiuixTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MiuixTheme.colorScheme.onBackgroundVariant,
+                ),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {
                 if (busy) {
                     androidx.compose.material3.CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
+                        color = Color.White,
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("分享所选 · $selectedCount 张")
+                Text("分享所选 · $selectedCount 张", fontSize = 16.sp)
             }
-            TextButton(
-                text = "保存到相册",
-                onClick = onSave,
-                enabled = enabled,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                text = "导出 ZIP",
-                onClick = onZip,
-                enabled = enabled,
-                modifier = Modifier.weight(0.95f),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(
+                    text = "保存到相册",
+                    onClick = onSave,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                )
+                TextButton(
+                    text = "导出 ZIP",
+                    onClick = onZip,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                )
+            }
         }
     }
 }
