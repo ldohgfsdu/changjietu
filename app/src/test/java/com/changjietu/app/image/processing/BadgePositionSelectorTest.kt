@@ -73,13 +73,14 @@ class BadgePositionSelectorTest {
     }
 
     @Test
-    fun choose_HIDDEN_when_all_corners_unsafe() {
+    fun choose_TR_when_all_corners_unsafe_never_hides_badge() {
         val w = 800
         val h = 2200
-        // 全图高能量：四个候选均无法通过 safe-enough gate
+        // 全图高能量：四个候选均无法通过 safe-enough gate。
+        // 修复「角标偶见失效」：不允许 HIDDEN，能量相同时按优先级回退 TR。
         val col = energy(w, emptyList())
         val row = energy(h, emptyList())
-        assertEquals(BadgePosition.HIDDEN, BadgePositionSelector.choose(w, h, 120, 40, 16, col, row))
+        assertEquals(BadgePosition.TR, BadgePositionSelector.choose(w, h, 120, 40, 16, col, row))
     }
 
     @Test
@@ -106,11 +107,28 @@ class BadgePositionSelectorTest {
     }
 
     @Test
-    fun choose_HIDDEN_on_dark_high_energy_background() {
-        // 深色/高能量背景：所有角能量与整体相当，不能因「相对最低」被误判为 safe
+    fun choose_TR_on_dark_high_energy_background_never_hides_badge() {
+        // 深色/高能量背景：所有角能量与整体相当，不能被误判为 safe，
+        // 但仍必须绘制角标（回退 TR），而不是 HIDDEN。
         val col = FloatArray(800) { 100f }
         val row = FloatArray(2200) { 100f }
-        assertEquals(BadgePosition.HIDDEN, BadgePositionSelector.choose(800, 2200, 120, 40, 16, col, row))
+        assertEquals(BadgePosition.TR, BadgePositionSelector.choose(800, 2200, 120, 40, 16, col, row))
+    }
+
+    @Test
+    fun fallback_picks_lowest_energy_corner_when_none_is_safe() {
+        val w = 800
+        val h = 2200
+        val badgeW = 120
+        val badgeH = 40
+        val pad = 16
+        // 低能量带仍高于 safe-enough gate，四角都不够空；左下角合计能量最低 → 回退 BL。
+        val col = energy(w, listOf(band(0, badgeW + pad, w)), low = 6f, high = 10f)
+        val row = energy(h, listOf(band(h - badgeH - pad, badgeH + pad, h)), low = 6f, high = 10f)
+        assertEquals(
+            BadgePosition.BL,
+            BadgePositionSelector.choose(w, h, badgeW, badgeH, pad, col, row),
+        )
     }
 
     @Test
@@ -119,5 +137,29 @@ class BadgePositionSelectorTest {
         val col = FloatArray(800)
         val row = FloatArray(2200)
         assertEquals(BadgePosition.TR, BadgePositionSelector.choose(800, 2200, 120, 40, 16, col, row))
+    }
+
+    @Test
+    fun narrow_slice_badge_shrinks_and_stays_inside() {
+        val scale = BadgePositionSelector.badgeScaleToFit(
+            rectW = 140f,
+            rectH = 36f,
+            bitmapWidth = 86,
+            bitmapHeight = 400,
+        )
+        assertTrue(scale < 1f)
+        assertTrue(scale * 140f <= 86f + 0.01f)
+
+        val (left, top) = BadgePositionSelector.placeBadge(
+            bitmapWidth = 86,
+            bitmapHeight = 400,
+            rectW = 140f * scale,
+            rectH = 36f * scale,
+            margin = 4f,
+            position = BadgePosition.TR,
+        )
+        assertTrue(left >= 0f)
+        assertTrue(top >= 0f)
+        assertTrue(left + 140f * scale <= 86f + 0.01f)
     }
 }

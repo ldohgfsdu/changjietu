@@ -19,15 +19,17 @@ data class RecentItem(
 class RecentStore(context: Context) {
     private val prefs = context.getSharedPreferences("recent_longshots", Context.MODE_PRIVATE)
 
-    fun list(): List<RecentItem> {
+    fun list(): List<RecentItem> = runCatching {
         val raw = prefs.getString(KEY, "[]") ?: "[]"
         val arr = JSONArray(raw)
-        return buildList {
+        buildList {
             for (i in 0 until arr.length()) {
-                val o = arr.getJSONObject(i)
+                val o = arr.optJSONObject(i) ?: continue
+                val uri = o.optString("uri")
+                if (uri.isBlank()) continue
                 add(
                     RecentItem(
-                        uri = o.getString("uri"),
+                        uri = uri,
                         width = o.optInt("width"),
                         height = o.optInt("height"),
                         sliceCount = o.optInt("sliceCount"),
@@ -35,8 +37,8 @@ class RecentStore(context: Context) {
                     ),
                 )
             }
-        }.sortedByDescending { it.timestamp }
-    }
+        }
+    }.getOrDefault(emptyList()).sortedByDescending { it.timestamp }
 
     fun add(uri: Uri, width: Int, height: Int, sliceCount: Int) {
         val items = list().filterNot { it.uri == uri.toString() }.toMutableList()

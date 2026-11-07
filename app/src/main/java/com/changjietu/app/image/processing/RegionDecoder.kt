@@ -16,8 +16,9 @@ class BitmapRegionSource(
     override val height: Int get() = decoder.height
 
     override fun decodeRegion(left: Int, top: Int, right: Int, bottom: Int, sampleSize: Int): RegionHandle? {
-        val l = left.coerceIn(0, width)
-        val t = top.coerceIn(0, height)
+        if (left >= width || top >= height || right <= left || bottom <= top) return null
+        val l = left.coerceIn(0, width - 1)
+        val t = top.coerceIn(0, height - 1)
         val r = right.coerceIn(l + 1, width)
         val b = bottom.coerceIn(t + 1, height)
         // 区域解码结果视为只读输入；角标/绘制一律走 SliceRenderer 的可变输出。
@@ -89,7 +90,9 @@ object RegionDecoderUtil {
                 val pixels = IntArray(bw * bh)
                 bmp.getPixels(pixels, 0, bw, 0, 0, bw, bh)
                 for (py in 0 until bh) {
-                    val srcY = (y + py * scaleY).toInt().coerceIn(0, h - 1)
+                    // 一个采样像素代表一段源像素。只写一个下标会让中间列/行保持 0，
+                    // 空白边检测会把正文里的采样空洞当成可裁空白。
+                    val ySpan = sampleSpan(y, py, scaleY, h)
                     var rowVar = 0f
                     var prevLum = -1f
                     for (px in 0 until bw) {
@@ -99,15 +102,20 @@ object RegionDecoderUtil {
                             rowVar += kotlin.math.abs(lum - prevLum)
                         }
                         prevLum = lum
-                        val srcX = (px * scaleX).toInt().coerceIn(0, w - 1)
                         if (py > 0) {
                             val above = pixels[(py - 1) * bw + px]
                             val lumA = (0.299f * Color.red(above) + 0.587f * Color.green(above) + 0.114f * Color.blue(above))
-                            colAcc[srcX] += kotlin.math.abs(lum - lumA)
-                            colCount[srcX] += 1f
+                            val delta = kotlin.math.abs(lum - lumA)
+                            val xSpan = sampleSpan(0, px, scaleX, w)
+                            for (sx in xSpan) {
+                                colAcc[sx] += delta
+                                colCount[sx] += 1f
+                            }
                         }
                     }
-                    rowEnergy[srcY] = rowVar / max(1, bw - 1)
+                    if (!ySpan.isEmpty()) {
+                        paintMax(rowEnergy, ySpan.first, ySpan.last + 1, rowVar / max(1, bw - 1))
+                    }
                 }
             }
             y = y2
@@ -117,6 +125,27 @@ object RegionDecoderUtil {
             if (colCount[i] > 0) colAcc[i] / colCount[i] else 0f
         }
         return colEnergy to rowEnergy
+    }
+
+    /**
+     * 采样像素 [index] 覆盖的源坐标区间（含首不含尾）。
+     * [scale] 是源像素 / 采样像素。区间至少 1 像素，且不越出 [size]。
+     */
+    internal fun sampleSpan(origin: Int, index: Int, scale: Float, size: Int): IntRange {
+        if (size <= 0) return IntRange.EMPTY
+        val start = (origin + index * scale).toInt().coerceIn(0, size - 1)
+        var end = (origin + (index + 1) * scale).toInt()
+        if (end <= start) end = start + 1
+        return start until end.coerceAtMost(size)
+    }
+
+    /** 把 [value] 涂进 [start, endExclusive)，只抬高、不压低，避免相邻采样互相抹掉正文。 */
+    internal fun paintMax(dest: FloatArray, start: Int, endExclusive: Int, value: Float) {
+        val from = start.coerceIn(0, dest.size)
+        val to = endExclusive.coerceIn(from, dest.size)
+        for (i in from until to) {
+            if (value > dest[i]) dest[i] = value
+        }
     }
 
     fun estimateGlyphHeight(rowEnergy: FloatArray): Float {

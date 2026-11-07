@@ -4,42 +4,58 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import com.changjietu.app.core.icons.AppIcons
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.changjietu.app.core.icons.AppIcons
 import com.changjietu.app.feature.editor.HomeUiState
 import com.changjietu.app.feature.editor.LongshotViewModel
 import com.changjietu.app.feature.history.RecentItem
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: LongshotViewModel,
@@ -56,92 +72,210 @@ fun HomeScreen(
             onOpened()
         }
     }
+    val caption = MiuixTheme.colorScheme.onSurfaceSecondary
 
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("长截图处理") })
-        },
+        containerColor = MiuixTheme.colorScheme.background,
+        // 首页无 TopAppBar，内容需要自己避开状态栏。
+        contentWindowInsets = WindowInsets.statusBars,
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = "相册或任意 App → 分享 → 长截图处理器\n自动切片，再批量发给 ChatGPT / Grok",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = {
-                    picker.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+            item {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = 16.dp),
+                ) {
+                    Text(
+                        "长截图",
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MiuixTheme.colorScheme.onBackground,
                     )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(AppIcons.Image, contentDescription = null)
-                Spacer(Modifier.padding(6.dp))
-                Text("选择图片")
-            }
-            Spacer(Modifier.height(16.dp))
-            when (val st = homeState) {
-                is HomeUiState.Loading -> {
-                    CircularProgressIndicator()
-                    Text(st.message, modifier = Modifier.padding(top = 8.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "原尺寸裁切，不缩放图片。",
+                        fontSize = 14.sp,
+                        color = caption,
+                    )
                 }
-                is HomeUiState.Error -> {
-                    Text(st.message, color = MaterialTheme.colorScheme.error)
-                }
-                HomeUiState.Idle -> Unit
             }
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "最近处理",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
-            if (recents.isEmpty()) {
-                Text(
-                    "暂无记录。从相册分享长截图到本应用即可开始。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(recents, key = { it.uri + it.timestamp }) { item ->
-                        RecentRow(item) {
-                            viewModel.openRecent(Uri.parse(item.uri))
-                            onOpened()
+            item {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                ) {
+                    Text(
+                        "支持相册导入，或从其他 App 分享",
+                        fontSize = 14.sp,
+                        color = caption,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            picker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColorsPrimary(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                    ) {
+                        Icon(
+                            AppIcons.Image,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.White,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "选择图片",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    when (val state = homeState) {
+                        is HomeUiState.Loading -> {
+                            Spacer(Modifier.height(12.dp))
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(6.dp))
+                            Text(state.message, fontSize = 13.sp, color = caption)
                         }
+                        is HomeUiState.Error -> {
+                            Spacer(Modifier.height(12.dp))
+                            Surface(color = Color(0xFFFFEDEA), shape = RoundedCornerShape(12.dp)) {
+                                Text(
+                                    state.message,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF8C1D18),
+                                    modifier = Modifier.padding(12.dp),
+                                )
+                            }
+                        }
+                        HomeUiState.Idle -> Unit
                     }
                 }
             }
+            item {
+                Text(
+                    "最近处理",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = caption,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+            }
+            if (recents.isEmpty()) {
+                item {
+                    Text(
+                        "还没有记录。处理完成后会出现在这里。",
+                        fontSize = 14.sp,
+                        color = caption,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
+                }
+            } else {
+                items(recents, key = { it.uri + it.timestamp }) { item ->
+                    RecentRow(
+                        item = item,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    ) {
+                        viewModel.openRecent(Uri.parse(item.uri))
+                        onOpened()
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(12.dp)) }
         }
     }
 }
 
 @Composable
-private fun RecentRow(item: RecentItem, onClick: () -> Unit) {
-    val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+private fun RecentRow(
+    item: RecentItem,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val fmt = SimpleDateFormat("M月d日 HH:mm", Locale.getDefault())
+    val caption = MiuixTheme.colorScheme.onSurfaceSecondary
+    var thumbFailed by remember(item.uri) { mutableStateOf(false) }
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(),
+        color = MiuixTheme.colorScheme.surface,
     ) {
-        ListItem(
-            headlineContent = {
-                Text("${item.width} × ${item.height} · ${item.sliceCount} 张")
-            },
-            supportingContent = {
-                Text(fmt.format(Date(item.timestamp)))
-            },
-        )
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 44.dp, height = 58.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MiuixTheme.colorScheme.surfaceContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (thumbFailed) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Icon(
+                            AppIcons.Image,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = caption,
+                        )
+                        Text(
+                            "原图不可用",
+                            fontSize = 9.sp,
+                            color = caption,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                } else {
+                    AsyncImage(
+                        model = Uri.parse(item.uri),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        onError = { thumbFailed = true },
+                        onSuccess = { thumbFailed = false },
+                        modifier = Modifier
+                            .size(width = 44.dp, height = 58.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "${fmt.format(Date(item.timestamp))} · ${item.sliceCount} 张切片",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${item.width} × ${item.height}",
+                    fontSize = 13.sp,
+                    color = caption,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }

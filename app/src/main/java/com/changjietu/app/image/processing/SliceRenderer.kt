@@ -16,6 +16,9 @@ object SliceRenderer {
     /** 角标安全检测默认 padding（像素）。 */
     const val DEFAULT_BADGE_PADDING = 16
 
+    /** 逐条解码的条带高度：控制峰值内存，避免整片源区域与输出位图同时常驻。 */
+    private const val STRIP_HEIGHT = 1024
+
     /**
      * 角标绘制前的纯校验（可在无 Android 图形栈的 JVM 上单测）。
      */
@@ -50,8 +53,9 @@ object SliceRenderer {
      * @return 可变输出 Bitmap（调用方负责 recycle）；区域源在返回前已 close。
      *
      * 当提供 [sliceColEnergy]/[sliceRowEnergy]（长度分别 ≥ 输出宽/高）时，
-     * 由 [BadgePositionSelector] 选择安全角标位置；四角均不安全则不绘制（HIDDEN）。
-     * 未提供能量数据时保持原行为：固定绘制在右上角（TR）。
+     * 由 [BadgePositionSelector] 选择尽量不遮挡内容的角标位置；四角均不安全时
+     * 回退到能量最低的角，保证角标始终绘制（不再出现 HIDDEN 缺号）。
+     * 未提供能量数据时固定绘制在右上角（TR）。
      */
     fun renderSlice(
         source: RegionSource,
@@ -64,22 +68,37 @@ object SliceRenderer {
         sliceRowEnergy: FloatArray? = null,
         badgePadding: Int = DEFAULT_BADGE_PADDING,
     ): Bitmap {
-        val region = source.decodeRegion(left, top, right, bottom, sampleSize = 1)
-            ?: error("region decode failed for ($left,$top)-($right,$bottom)")
+        val outW = (right - left).coerceAtLeast(1)
+        val outH = (bottom - top).coerceAtLeast(1)
+        val output = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
         try {
-            // 源区域只读：即使 isMutable==true 也不得对其创建 Canvas
-            val srcBmp = region.bitmapOrNull
-                ?: error("region has no Android bitmap")
-            val outW = region.width.coerceAtLeast(1)
-            val outH = region.height.coerceAtLeast(1)
-            val output = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(output)
             canvas.drawColor(Color.WHITE)
-            canvas.drawBitmap(srcBmp, 0f, 0f, null)
+            // 分条解码后逐条绘制到输出位图：峰值内存 ≈ output + 一条源带，
+            // 而不是 output + 整片源区域（屏幕高度切片时差异明显）。
+            var y = top
+            while (y < bottom) {
+                val stripBottom = (y + STRIP_HEIGHT).coerceAtMost(bottom)
+                val region = source.decodeRegion(left, y, right, stripBottom, sampleSize = 1)
+                    ?: error("region decode failed for ($left,$y)-($right,$stripBottom)")
+                try {
+                    val srcBmp = region.bitmapOrNull
+                        ?: error("region has no Android bitmap")
+                    canvas.drawBitmap(srcBmp, 0f, (y - top).toFloat(), null)
+                } finally {
+                    region.close()
+                }
+                y = stripBottom
+            }
             if (badgeLabel != null) {
                 val textSize = badgeTextSize(outW)
                 val (badgeW, badgeH) = measureBadge(badgeLabel, textSize)
-                val position = if (sliceColEnergy != null && sliceRowEnergy != null) {
+                val position = if (
+                    sliceColEnergy != null &&
+                    sliceRowEnergy != null &&
+                    sliceColEnergy.size >= outW &&
+                    sliceRowEnergy.size >= outH
+                ) {
                     BadgePositionSelector.choose(
                         sliceWidth = outW,
                         sliceHeight = outH,
@@ -92,13 +111,13 @@ object SliceRenderer {
                 } else {
                     BadgePosition.TR
                 }
-                if (position != BadgePosition.HIDDEN) {
-                    drawPageBadge(output, badgeLabel, position)
-                }
+                // HIDDEN 只是旧枚举。choose() 不再返回它；这里仍绘制，避免任何路径缺号。
+                drawPageBadge(output, badgeLabel, position)
             }
             return output
-        } finally {
-            region.close()
+        } catch (e: Exception) {
+            if (!output.isRecycled) output.recycle()
+            throw e
         }
     }
 
@@ -117,22 +136,31 @@ object SliceRenderer {
             textSize = badgeTextSize(bitmap.width)
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        val pad = textPaint.textSize * 0.35f
-        val tw = textPaint.measureText(label)
-        val th = textPaint.textSize
-        val rectW = tw + pad * 2f
-        val rectH = th + pad * 1.2f
+        var textSize = textPaint.textSize
+        var pad = textSize * 0.35f
+        var tw = textPaint.measureText(label)
+        var th = textSize
+        var rectW = tw + pad * 2f
+        var rectH = th + pad * 1.2f
+        val scale = BadgePositionSelector.badgeScaleToFit(rectW, rectH, bitmap.width, bitmap.height)
+        if (scale < 0.999f) {
+            textSize *= scale
+            textPaint.textSize = textSize
+            pad = textSize * 0.35f
+            tw = textPaint.measureText(label)
+            th = textSize
+            rectW = tw + pad * 2f
+            rectH = th + pad * 1.2f
+        }
         val margin = pad
-        val left = when (position) {
-            BadgePosition.TR, BadgePosition.BR -> bitmap.width - rectW - margin
-            BadgePosition.TL, BadgePosition.BL -> margin
-            BadgePosition.HIDDEN -> margin
-        }
-        val top = when (position) {
-            BadgePosition.TR, BadgePosition.TL -> margin
-            BadgePosition.BR, BadgePosition.BL -> bitmap.height - rectH - margin
-            BadgePosition.HIDDEN -> margin
-        }
+        val (left, top) = BadgePositionSelector.placeBadge(
+            bitmapWidth = bitmap.width,
+            bitmapHeight = bitmap.height,
+            rectW = rectW,
+            rectH = rectH,
+            margin = margin,
+            position = position,
+        )
         val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(160, 0, 0, 0)
         }

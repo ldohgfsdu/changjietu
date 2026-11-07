@@ -10,6 +10,17 @@ enum class QualityLevel {
     UNRECOVERABLE // < 360 或字高过小
 }
 
+/**
+ * 界面上的说法。正式等级名仍是 [QualityReport.summary]（良好 / 可用 / 偏低 / 不可恢复）。
+ * 「不可恢复」容易被理解成文件损坏，所以界面对外说「清晰度不足」。
+ */
+fun QualityLevel.displayName(): String = when (this) {
+    QualityLevel.GOOD -> "清晰度良好"
+    QualityLevel.USABLE -> "清晰度可用"
+    QualityLevel.LOW -> "清晰度偏低"
+    QualityLevel.UNRECOVERABLE -> "清晰度不足"
+}
+
 data class QualityReport(
     val width: Int,
     val height: Int,

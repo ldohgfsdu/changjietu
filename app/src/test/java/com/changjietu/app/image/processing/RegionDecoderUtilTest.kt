@@ -72,6 +72,27 @@ class RegionDecoderUtilTest {
     }
 
     @Test
+    fun sampleSpan_covers_each_source_pixel_of_a_downsampled_column() {
+        val span0 = RegionDecoderUtil.sampleSpan(origin = 0, index = 0, scale = 16f, size = 1080)
+        val span1 = RegionDecoderUtil.sampleSpan(origin = 0, index = 1, scale = 16f, size = 1080)
+        assertEquals(0, span0.first)
+        assertEquals(16, span0.last + 1)
+        assertEquals(16, span1.first)
+        assertEquals(32, span1.last + 1)
+    }
+
+    @Test
+    fun paintMax_fills_span_without_erasing_a_stronger_neighbor() {
+        val row = FloatArray(8)
+        RegionDecoderUtil.paintMax(row, 0, 4, 5f)
+        RegionDecoderUtil.paintMax(row, 2, 6, 1f)
+        assertEquals(5f, row[2])
+        assertEquals(5f, row[3])
+        assertEquals(1f, row[4])
+        assertEquals(0f, row[6])
+    }
+
+    @Test
     fun computeEnergyMaps_multipleRegions_eachHandleClosedOnce() {
         val src = FakeRegionSource(w, h)
         RegionDecoderUtil.computeEnergyMaps(src)

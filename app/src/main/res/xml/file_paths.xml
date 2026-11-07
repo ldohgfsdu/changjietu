@@ -2,6 +2,7 @@
 <paths>
     <cache-path name="share_cache" path="share/" />
     <cache-path name="slice_cache" path="slices/" />
+    <cache-path name="zip_cache" path="zip/" />
     <external-cache-path name="ext_share" path="share/" />
     <files-path name="export_files" path="export/" />
 </paths>

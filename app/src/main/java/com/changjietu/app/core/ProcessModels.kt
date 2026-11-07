@@ -37,11 +37,16 @@ data class SourceInfo(
 data class EditorState(
     val source: SourceInfo,
     val settings: ProcessSettings,
-    /** content 坐标系 cut ends（exclusive），末元素 = contentHeight */
+    /** content 坐标系 cut ends（exclusive），末元素 = [cropBottom] */
     val cutEnds: List<Int>,
     val contentHeight: Int,
     val contentWidth: Int,
+    /** 整体截取范围（content 坐标，含首不含尾）；头尾裁切手柄可拖动收缩。 */
+    val cropTop: Int = 0,
+    val cropBottom: Int = contentHeight,
     val slices: List<SliceOutput> = emptyList(),
+    /** 预览页逐张选择；重新切片后默认全选。 */
+    val selectedIndices: Set<Int> = slices.indices.toSet(),
     val isProcessing: Boolean = false,
     val error: String? = null,
     val statusMessage: String? = null,

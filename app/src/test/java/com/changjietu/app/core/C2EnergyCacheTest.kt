@@ -102,7 +102,7 @@ class C2EnergyCacheTest {
         val text = vm.readText().lines()
         // 提取 processInternal 函数体
         val procStart = text.indexOfFirst { it.contains("private fun processInternal") }
-        val procEnd = text.indexOfFirst { it.contains("private fun cleanupOldSliceDirs") }
+        val procEnd = text.indexOfFirst { it.contains("private fun cleanupOldEntries") }
         assertTrue(procStart >= 0 && procEnd > procStart)
         val processBody = text.subList(procStart, procEnd).joinToString("\n")
 

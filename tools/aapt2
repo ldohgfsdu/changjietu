@@ -1,20 +1,38 @@
 #!/bin/sh
-# arm64 hosts: run SDK aapt2 under qemu-x86_64.
-# The android.aapt2FromMavenOverride property is host-local gradle config
-# (e.g. ~/.gradle/gradle.properties) and must NOT be committed.
-# SDK path is resolved from local.properties (sdk.dir); AAPT2_REAL overrides all.
-DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-SDK_DIR=""
-if [ -f "$DIR/../local.properties" ]; then
-  SDK_DIR=$(sed -n 's/^sdk\.dir=//p' "$DIR/../local.properties" | tail -n1)
-fi
+# changjietu AAPT2 compatibility wrapper.
+#
+# The repo's gradle.properties sets android.aapt2FromMavenOverride=../tools/aapt2,
+# which points here. This wrapper resolves the real SDK aapt2:
+#   - x86-64/arm64(apple): executes the SDK aapt2 natively
+#   - arm64 Linux: SDK aapt2 is an x86-64 ELF; run it under qemu-x86_64
+# SDK path is resolved from local.properties (sdk.dir); env AAPT2_REAL overrides all.
+#
+# C3F1: fail fast with clear remediation on missing prerequisites, instead of an
+# obscure daemon / processDebugResources startup failure.
+
 AAPT2_BIN="${AAPT2_REAL:-}"
 if [ -z "$AAPT2_BIN" ]; then
+  DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+  SDK_DIR=""
+  if [ -f "$DIR/../local.properties" ]; then
+    SDK_DIR=$(sed -n 's/^sdk\.dir=//p' "$DIR/../local.properties" | tail -n1)
+  fi
   AAPT2_BIN="$SDK_DIR/build-tools/35.0.0/aapt2"
 fi
+
+if [ ! -x "$AAPT2_BIN" ]; then
+  echo "changjietu/wrapper: SDK aapt2 not found or not executable: $AAPT2_BIN" >&2
+  echo "Install Android SDK Build Tools 35.0.0, or set AAPT2_REAL to a working aapt2." >&2
+  exit 1
+fi
+
 if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
   if command -v qemu-x86_64 >/dev/null 2>&1; then
     exec qemu-x86_64 "$AAPT2_BIN" "$@"
   fi
+  echo "changjietu/wrapper: ARM64 host requires qemu-x86_64 to run the x86-64 SDK aapt2." >&2
+  echo "Install qemu-user (provides qemu-x86_64), e.g. 'apt install qemu-user'." >&2
+  exit 1
 fi
+
 exec "$AAPT2_BIN" "$@"

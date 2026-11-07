@@ -1,6 +1,6 @@
 # 当前状态
 
-> 更新日期：2026-08-16
+> 更新日期：2026-11-07
 > **只记录仓库可证实的事实**。
 
 ---
@@ -9,14 +9,18 @@
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.1.0** | `app/build.gradle.kts` |
-| versionCode | **1** | 同上 |
-| applicationId | `com.changjietu.app` | `app/build.gradle.kts` |
+| versionName | **0.2.0** | `app/build.gradle.kts` |
+| versionCode | **2** | 同上 |
+| applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
+
+> 版本号仍为 0.2.0：v0.3 功能已合入但**未发版**，版本号未提升。
 
 ---
 
-## 2. 已完成（MVP）
+## 2. 已完成
+
+### 2.1 MVP（0.1.0 基线）
 
 | 能力 | 说明 |
 |------|------|
@@ -28,30 +32,115 @@
 | 预览 | 拖分割线 / 合并 / 删除 / 重新编号 |
 | 导出 | MediaStore 保存 + `ACTION_SEND_MULTIPLE` |
 
-- `assembleDebug` + 单元测试已通过
-- 规格文件：[GOAL.md](../GOAL.md)
+### 2.2 v0.2（2026-11-06）
+
+| 能力 | 说明 |
+|------|------|
+| 屏幕自适应 | `DisplaySpec` 读取真实屏幕像素；单张高度默认 = 屏幕长边，上限硬约束 |
+| 缝隙感知 | 低能量空白带检测 + 缝隙宽度/距离/高度评分；尾部过短重排 |
+| 不缩放 | 区域解码 sampleSize=1；保留内容宽度与原始像素 |
+| 逐张选择 | 预览页单选/全选/取消全选；保存、ZIP、分享只作用于选中项 |
+| 相册目录 | 选中切片保存到 `Pictures/changjietu`（API 29+ MediaStore，26–28 直接写入 + 扫描） |
+| ZIP | `SliceZipper`（`java.util.zip`，无新依赖）→ `Download/changjietu/*.zip`，可分享 |
+| Release | `assembleRelease` + R8 minify + shrinkResources + 本地 Release 签名 |
+| UI/UX | 首页/处理页/预览页重设计；图标缩小居中；错误/空态/权限/导出反馈 |
+
+- 构建门：`testDebugUnitTest` **108 用例 / 0 失败**、`assembleDebug`、`assembleRelease`、`lintDebug` 均 PASS（JDK 17；lint 0 errors / 9 warnings）
+- 规格文件：[GOAL.md](../GOAL.md)（含 v0.2 增量）
+
+### 2.3 v0.3（2026-11-06，未发版）
+
+| 能力 | 说明 |
+|------|------|
+| 剪辑式编辑 | 预览页上半部为导入长图的下采样总览，叠加自动切分线；上下箭头手柄无级拖动切点（向下 = 上片多一点/下片少一点）、点击任意处新增切入点、头/尾整体裁切范围手柄；下半部保留切片网格（逐张选择/合并/删除/导出） |
+| 长图总览分块解码 | 新增 `OverviewGeometry` + `OverviewRenderer`：按条带 `decodeRegion(sampleSize)` 生成 ≤ 360 × 6000 的 RGB_565 位图，不整图 decode、不交给 Coil 重解码 |
+| 编辑数据模型 | `EditorState` 追加 `cropTop`/`cropBottom`；拖动只改内存状态（零 IO、`ProcessTransition` 不受影响），松手一次性重切；`SplitPointDetector` 保持不变 |
+| miuix UI | 三个页面迁移 `top.yukonga.miuix.kmp:miuix:0.3.0`（兼容现有 Kotlin 2.0.21 / Compose 1.7.x）；`MiuixTheme` 叠加 `MaterialTheme`；组件 TopAppBar/Scaffold/Card/Button/Slider/SuperSwitch/TextField 等 |
+| 状态栏适配 | `MainActivity` 按夜间模式设置 `WindowInsetsControllerCompat` 图标深浅；XML 主题透明系统栏；miuix `SmallTopAppBar` 自带 statusBars insets，`Scaffold(contentWindowInsets=0)` 防双重顶部 padding |
+| 角标修复 | `BadgePositionSelector` 永不返回 `HIDDEN`；四角都不够空时回退到能量最低的角，角标始终绘制 |
+| 裁空白边优化 | `MarginDetector` 自适应阈值 + 持续段噪点容忍 + 逐轴 clamp（取代「过裁就四边全归零」）+ 近纯空白轴单独拒绝 |
+| ZIP 重命名 | 导出前对话框自定义名，`ZipNameSanitizer` 清洗；`SavedZip.file` 统一回填缓存 zip，修 API 26–28 `FileProvider` 分享隐患 |
+
+- 构建门（合入 miuix 时）：`testDebugUnitTest` **123 用例 / 0 失败**、`assembleDebug`、`lintDebug`、`assembleRelease`（R8 + lintVital）均 PASS（JDK 17）
+- 主路径静态核查：仅 `ImageSplitter.decodeBounds` 使用 `BitmapFactory.decodeStream`（`inJustDecodeBounds=true`），其余均为 `decodeRegion` 分块解码
+
+### 2.4 v0.3 补洞（2026-11-06，仍未发版）
+
+未重做 2.3 已有的剪辑总览、miuix 0.3.0、ZIP 重命名和「角标不再返回 HIDDEN」。
+
+| 能力 | 说明 |
+|------|------|
+| 采样能量铺满 | `sampleSpan` 把降采样像素涂回源区间，空白边不再把采样空洞当空白；单侧扫描上限 40% |
+| 角标入画 | 过窄切片缩小角标并夹在画布内；能量数组过短时固定右上角，绘制不再因 `HIDDEN` 跳过 |
+| 切点手势 | 手柄在按下时拦住外层滚动；拖空白处预览长图；长按新增长图切点 |
+| 点击预览 | 点切片图打开可上下滑动的大图；勾选圈仍负责选择 |
+| 状态栏 | 关闭 API 29+ 系统栏对比度遮罩；窗口背景对齐 miuix；首页去掉不伸进状态栏的渐变头图 |
+
+- 构建门：`testDebugUnitTest` **127 用例 / 0 失败**、`assembleDebug` PASS（JDK 17）。未重跑 `lintDebug` / `assembleRelease`
+- 运行态：无 adb 设备，拖动手感、大图预览、状态栏视觉、ZIP 重命名落盘仍待真机验收
+
+### 2.5 处理页切线预览（2026-11-07，仍未发版）
+
+未改切片、寻缝、裁边算法，也未重做结果页的拖动编辑。
+
+| 能力 | 说明 |
+|------|------|
+| 首页 | 只留「选择图片」和最近记录。去掉长介绍和常驻质量四档。记录以时间和张数为主，分辨率次之，去掉蓝色「再处理」 |
+| 处理页 | 主按钮固定在底部，用 primary 色，文案为「生成 N 张切片」。页码、JPEG 说明和「给 AI 看」收进「更多选项」 |
+| 切线预览 | 分析完成后分块生成整图总览；高度、重叠只改切线。裁边在预览上画框。单张时不展示重叠滑块。点击可放大 |
+| 文案 | 界面称「清晰度不足」，并说明不是文件损坏。正式等级名「不可恢复」仍留在 `QualityAnalyzer`。JPEG 写明像素尺寸不变但是有损 |
+
+- 构建门：`testDebugUnitTest` **130 用例 / 0 失败**、`assembleRelease`（含 lintVital）PASS（JDK 17）。未单独重跑 `lintDebug`
+- 运行态：无 adb 设备。预览、滑块手柄、底部按钮和首页层级未在真机验收
+
+### 2.6 评审优化（2026-11-07，仍未发版）
+
+按 7.8/10 评审继续收细节，未改切片、寻缝、裁边算法核心（`SplitPointDetector`/`ImageSplitter`/`MarginDetector` 未动），未升级 miuix。
+
+| 能力 | 说明 |
+|------|------|
+| 生成前切线编辑 | 处理页全屏「调整切线」直接拖切点/长按新增，`manualCuts` 经 `buildPreviewPlan`/`processInternal` 同步预览与正式切片；改高度/重叠/裁边恢复自动；上一条/下一条跳转；`SmallTopAppBar` 统一 |
+| 编号与容器 | 总览编号收小并移至左侧外缘（`CutPreview`/`PreviewCutEditor`/`OverviewEditor`），总览容器 240→190dp，文案「点击查看并调整切线」 |
+| 文案修正 | 首页「保留原始画质」→「原尺寸裁切，不缩放图片」；每张高度「与当前屏幕等高」→「按当前设备屏幕像素高度裁切」；「当前预设」→「当前裁切设置」；重叠说明→「保留连续阅读上下文」；标题「裁切方式」→「裁切设置」 |
+| 滑块与快捷 | `ThumbSlider` 轨道 28→6dp、手柄 22→18dp；高度新增「按屏幕高度/紧凑半屏」按钮 |
+| 首页层级 | 去掉「选择一张长截图」标题，只留说明+按钮；「最近处理」16→13sp 次级标题；历史缩略图失败显示占位图标+「原图不可用」 |
+| 导航栏 | 切片大图弹窗由 Row 换为 `SmallTopAppBar`，与主界面一致 |
+
+- 构建门：`testDebugUnitTest` **130 用例 / 0 失败**、`assembleDebug`、`assembleRelease`（含 lintVital）PASS（JDK 17）。`lintDebug` 6 errors 系既有 `NewApi`（`windowLightNavigationBar`/`enforce*Contrast`，非本轮新增）未修
+- 运行态：无 adb 设备。全屏拖拽手感、实时切线同步、上一条/下一条滚动、高度快捷值、历史占位均未真机验收
+
+### 2.7 裁边/切线解耦与保守裁边（2026-11-07，仍未发版）
+
+P0 解耦：`manualCuts` 改 source 坐标 + `SourceCutGeometry` 纯几何（JVM 4 例）；`updateSettings` 不再清空切线，切换裁边/改高度重叠均保留；越界切点仅过滤并提示冲突。保守裁边：`MarginDetector` 加安全内边距（宽/50、上限 24；高/200、上限 16）。黄色框：`manualMargins` 数值可编辑 + 恢复检测值，开关保留；拖框与撤销/持久化未做（超出本轮）。算法核心仍未动，未升级 miuix。
+
+- 构建门：`testDebugUnitTest` **135 用例 / 0 失败**、`assembleDebug`、`assembleRelease`（含 lintVital）PASS（JDK 17）。`lintDebug` 6 errors 系既有 `NewApi`（非本轮新增）未修
+- 运行态：已连设备冒烟待补；保守量与冲突提示未真机验收
 
 ---
 
-## 3. 进行中
+## 3. 进行中 / 历史修复
 
 - **C1 / C2：CODE-CLOSED / RUNTIME-PENDING**（无 adb 设备，运行态冒烟待补）
   - C1（进图合同）commit `91a2030`；C2（解码生命周期 + 能量缓存复用）commit `67d6512`
   - C2F1（处理完成一次性导航契约 + C2.2 Evidence Gate）commit `d244f6d`
-  - 构建门：`testDebugUnitTest` 94 用例 / 0 失败、`assembleDebug`、`lintDebug` 均 PASS（JDK 17）
-- **C3（Artifact Size & Build Environment Closure）：SIZE-CLOSED / BUILD-CLOSED / RUNTIME-PENDING**
-  - 尺寸 A/B：移除 `material-icons-extended`（~6.9MB / ~39%），本地 `AppIcons` 保留 Image/CallMerge
-  - Build contract：AAPT2 override 改为仓库可控 `gradle.properties`（`android.aapt2FromMavenOverride=../tools/aapt2` → `tools/aapt2` 包装），消除用户级 Gradle 配置依赖
-  - **Isolated Build Reproducibility Gate：PASS**（fresh GRADLE_USER_HOME、无用户级 gradle.properties，复用已声明 wrapper/dependency cache；test/assemble/lint 全过，APK SHA 复现）
+- **C3（Artifact Size & Build Environment Closure）**：SIZE-CLOSED / BUILD-CLOSED / RUNTIME-PENDING
+  - 移除 `material-icons-extended`（~6.9MB / ~39%），本地 `AppIcons` 保留 Image/CallMerge
+  - Build contract：AAPT2 override 为仓库可控 `gradle.properties` → `tools/aapt2`；结论边界见 D-010
+  - C3F1：`tools/preflight.sh` + wrapper fail-fast + README supported build matrix（D-011）
+  - Isolated Gradle-home reproducibility：PASS（非完全 hermetic/cold-network）
 
 ---
 
 ## 4. 缺口
 
-- 无 adb 设备，运行态冒烟待补（C1 / C2 最高状态为 CODE-CLOSED / RUNTIME-PENDING）
+- 无 adb 设备，运行态冒烟待补；视觉/交互最终由用户安装 APK 验收
+- v0.3 剪辑式编辑的拖动手感、总览大图渲染、切片点击预览、ZIP 重命名对话框、状态栏图标深浅均未在真机验证
+- 2.5/2.6 的首页、处理页切线预览、生成前全屏编辑、底部主按钮未在真机验收。PNG 无损导出未做
+- Release（R8）仅通过构建与 lint，未在真机验证运行时
+- `manualCuts` 生成前编辑的预览↔生成一致性仅静态同源（`buildPreviewPlan`/`processInternal` 共用 `rangesFromCutEnds`），未在真机对比
 - `ProcessTransition` 导航 wiring（Compose/Activity 层）为 NOT AUTOMATED，仅纯 JVM 契约已测
-- README 为既有 dirty 文件，已排除于 C1/C2/C2F1 提交；是否提交留待 C3 单独裁决（非"永不入库"）
 - 第二阶段功能全部延后（见 GOAL.md §第二阶段）
+- Cold-network 全量重下依赖未执行（见 §5.1）
 
 ---
 
@@ -59,14 +148,28 @@
 
 | 项 | 值 |
 |----|-----|
-| 产物路径 | `app/build/outputs/apk/debug/app-debug.apk` |
-| variant | debug |
-| 测量日 | 2026-08-16 |
+| Release 产物 | `app/build/outputs/apk/release/app-release.apk` |
+| Release 交付 | `download/changjietu-0.2.0-release.apk`、`/sdcard/Download/changjietu-0.2.0-release.apk` |
+| Release 体积 | **1,571,355** bytes（2026-11-07 裁边/切线解耦轮） |
+| Release SHA-256 | `44b78f77fc7b8bdbf537d5249edf938450e98d801a28c52545181e453f37f458` |
+| Debug 体积 | **14,776,293** bytes（2026-11-07 裁边/切线解耦轮） |
+| Debug SHA-256 | `132e41149414ed6cb1681ff45f56ceeba4e144e4f8ae2f3e5ba54133a49a51da` |
+| 测量日 | 2026-11-07 |
 | 环境 | JDK 17 · Gradle 8.11.1 · AGP 8.7.3 · Kotlin 2.0.21 |
-| 体积（clean A/B） | **17,710,094** bytes（含 material-icons-extended，SHA `50404db0…`）→ **10,828,657** bytes（移除后，SHA `04ced785…`），-6,881,437 bytes / -38.9% |
-| APK 成分 | classes.dex ≈ 10.25 MB（97%）、resources.arsc ≈ 418 KB、lib ≈ 37 KB、res ≈ 14 KB、其余少量 |
 
-> 注：APK 文件字节在不同构建间存在 ZIP 对齐填充非确定性（约 ±11 KB），A/B 以 clean 构建为权威。
+> APK 字节在不同构建间存在 ZIP 对齐填充非确定性（约 ±11 KB）；以 clean 构建为权威。
+> Release 签名 keystore 位于仓库外（`/root/.android/changjietu-release.jks`），`local.properties` 不入库。
+
+---
+
+## 5.1 Cold-Network（cold dependency-resolution）Gate
+
+| 项 | 值 |
+|----|-----|
+| 含义 | 全新 GRADLE_USER_HOME、无预置 dependency cache，从网络解析全部依赖的 smoke |
+| 术语 | **isolated Gradle-home reproducibility**（非完全 hermetic/cold-network reproducibility） |
+| 结果 | COLD_NETWORK_FETCH = **NOT VERIFIED**（未执行，未伪造） |
+| 影响 | 不阻止 build-contract closure（C3F1 BUILD-CONTRACT-CLOSED） |
 
 ---
 

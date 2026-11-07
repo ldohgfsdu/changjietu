@@ -4,10 +4,15 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- 居中缩小的长截图卡片（自适应图标安全区内） -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M30,22h48c2.2,0 4,1.8 4,4v56c0,2.2 -1.8,4 -4,4H30c-2.2,0 -4,-1.8 -4,-4V26c0,-2.2 1.8,-4 4,-4z" />
+        android:pathData="M42,25h24a5,5 0 0 1 5,5v48a5,5 0 0 1 -5,5h-24a5,5 0 0 1 -5,-5v-48a5,5 0 0 1 5,-5z" />
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M38,34h32v6H38zM38,48h32v6H38zM38,62h22v6H38z" />
+        android:fillColor="#3554D1"
+        android:pathData="M43,37h22v4h-22zM43,47h22v4h-22zM43,57h15v4h-15z" />
+    <!-- 琥珀色虚线：暗示在间隙处切开 -->
+    <path
+        android:fillColor="#F2A33A"
+        android:pathData="M43,67h7v4h-7zM53,67h7v4h-7zM63,67h2v4h-2z" />
 </vector>

@@ -20,6 +20,7 @@
             android:exported="true"
             android:theme="@style/Theme.Changjietu"
             android:windowSoftInputMode="adjustResize"
+            android:windowLayoutInDisplayCutoutMode="shortEdges"
             android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

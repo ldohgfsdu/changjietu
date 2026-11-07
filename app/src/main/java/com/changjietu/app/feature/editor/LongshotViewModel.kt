@@ -3,17 +3,24 @@ package com.changjietu.app.feature.editor
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.changjietu.app.core.DisplaySpec
 import com.changjietu.app.core.EditorState
 import com.changjietu.app.core.ProcessErrorMessages
 import com.changjietu.app.core.ProcessSettings
 import com.changjietu.app.core.ProcessTransition
 import com.changjietu.app.core.ShareDelivery
+import com.changjietu.app.core.SourceCutGeometry
 import com.changjietu.app.core.SourceInfo
 import com.changjietu.app.core.UriAccessSource
 import com.changjietu.app.core.UriPersistencePolicy
+import com.changjietu.app.core.ZipNameSanitizer
 import com.changjietu.app.feature.export.ExportRepository
+import com.changjietu.app.feature.export.SaveSummary
+import com.changjietu.app.feature.export.SavedZip
+import com.changjietu.app.feature.export.SliceZipper
 import com.changjietu.app.feature.history.RecentStore
 import com.changjietu.app.image.analysis.MarginDetector
 import com.changjietu.app.image.analysis.Margins
@@ -21,9 +28,14 @@ import com.changjietu.app.image.analysis.QualityAnalyzer
 import com.changjietu.app.image.analysis.SplitPointDetector
 import com.changjietu.app.image.processing.BitmapRegionSource
 import com.changjietu.app.image.processing.ImageSplitter
+import com.changjietu.app.image.processing.OverviewRenderer
 import com.changjietu.app.image.processing.RegionDecoderUtil
+import com.changjietu.app.image.processing.SliceOutput
 import com.changjietu.app.image.processing.SplitRequest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +43,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 sealed interface HomeUiState {
     data object Idle : HomeUiState
@@ -38,10 +53,45 @@ sealed interface HomeUiState {
     data class Error(val message: String) : HomeUiState
 }
 
+/**
+ * 剪辑式编辑页用的长图总览（已解码位图，不交给 Coil 重新解码）。
+ * [contentWidth]/[contentHeight] 为裁边后的内容坐标尺寸，用于 y ↔ 切点线性映射。
+ */
+data class OverviewState(
+    val bitmap: ImageBitmap,
+    val contentWidth: Int,
+    val contentHeight: Int,
+)
+
+/**
+ * 处理页上的预计切分。切点在内容坐标（裁边之后），末元素是内容高度。
+ * 位图本身是整张原图，裁边用 [contentLeft]/[contentTop] 叠在预览上。
+ */
+data class PreviewPlan(
+    val sliceCount: Int,
+    val cutEnds: List<Int>,
+    val contentLeft: Int,
+    val contentTop: Int,
+    val contentWidth: Int,
+    val contentHeight: Int,
+    val sourceWidth: Int,
+    val sourceHeight: Int,
+)
+
+sealed interface PreviewBitmapState {
+    data object Empty : PreviewBitmapState
+    data object Loading : PreviewBitmapState
+    data class Ready(val overview: OverviewState) : PreviewBitmapState
+    data object Failed : PreviewBitmapState
+}
+
 class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     private val exportRepo = ExportRepository(app)
     private val recentStore = RecentStore(app)
+
+    /** 当前设备真实屏幕像素；切片默认高度取其长边，保证单张不超过手机屏幕。 */
+    val displaySpec: DisplaySpec = DisplaySpec.from(app)
 
     private val _homeState = MutableStateFlow<HomeUiState>(HomeUiState.Idle)
     val homeState: StateFlow<HomeUiState> = _homeState.asStateFlow()
@@ -49,11 +99,40 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     private val _source = MutableStateFlow<SourceInfo?>(null)
     val source: StateFlow<SourceInfo?> = _source.asStateFlow()
 
-    private val _settings = MutableStateFlow(ProcessSettings())
+    private val _settings = MutableStateFlow(
+        ProcessSettings(targetHeight = displaySpec.maxSliceHeightPx),
+    )
     val settings: StateFlow<ProcessSettings> = _settings.asStateFlow()
+
+    /** 防止旧的加载/切片任务在新图片打开后回写过期结果。 */
+    private var sourceGeneration = 0
+
+    /** 连续微调切点时只保留最后一次重切结果。 */
+    private var reprocessJob: Job? = null
 
     private val _editor = MutableStateFlow<EditorState?>(null)
     val editor: StateFlow<EditorState?> = _editor.asStateFlow()
+
+    /** 结果页剪辑总览：裁边后的内容区域。只在初始切分成功时生成，手动编辑不重建。 */
+    private val _overview = MutableStateFlow<OverviewState?>(null)
+    val overview: StateFlow<OverviewState?> = _overview.asStateFlow()
+
+    /** 处理页切线预览：整图分块总览。高度/重叠只改切线，不重新解码。 */
+    private val _previewBitmap = MutableStateFlow<PreviewBitmapState>(PreviewBitmapState.Empty)
+    val previewBitmap: StateFlow<PreviewBitmapState> = _previewBitmap.asStateFlow()
+
+    private val _previewPlan = MutableStateFlow<PreviewPlan?>(null)
+    val previewPlan: StateFlow<PreviewPlan?> = _previewPlan.asStateFlow()
+
+    private var previewJob: Job? = null
+
+    /** 处理页全屏手动切线（source 坐标，不含末端）。null = 自动计划；与裁边解耦，切换裁边不重置。 */
+    private val _manualCuts = MutableStateFlow<List<Int>?>(null)
+    val manualCuts: StateFlow<List<Int>?> = _manualCuts.asStateFlow()
+
+    /** 用户手动裁边框（source 坐标）。null = 用检测建议值；切换裁边开关保留，恢复检测值才清空。 */
+    private val _manualMargins = MutableStateFlow<Margins?>(null)
+    val manualMargins: StateFlow<Margins?> = _manualMargins.asStateFlow()
 
     private val _recents = MutableStateFlow(recentStore.list())
     val recents: StateFlow<List<com.changjietu.app.feature.history.RecentItem>> = _recents.asStateFlow()
@@ -78,13 +157,21 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         openUri(uri, UriAccessSource.EXTERNAL_SHARE, flags)
     }
 
-    /** 无效/缺失/不支持的外部输入：graceful fail，不 crash、不误判为正常源。 */
+    /** 无效/缺失/不支持的外部输入：graceful fail，留在首页展示错误，不 crash、不误判为正常源。 */
     fun openInvalidShare() {
         val id = shareDelivery.consume()
+        shareDelivery.ack(id)
+        sourceGeneration++
+        reprocessJob?.cancel()
+        reprocessJob = null
         _source.value = null
         _editor.value = null
+        _overview.value = null
+        _manualCuts.value = null
+        _manualMargins.value = null
+        resetPreview()
         _homeState.value = HomeUiState.Error(ProcessErrorMessages.INVALID_SHARE)
-        _pendingShareId.value = id
+        _pendingShareId.value = null
     }
 
     /** UI 在完成导航后 ack；仅当 id 匹配当前 pending 才清空。 */
@@ -105,37 +192,117 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     fun openRecent(uri: Uri) = openUri(uri, UriAccessSource.RECENT)
 
     fun updateSettings(transform: (ProcessSettings) -> ProcessSettings) {
-        _settings.update(transform)
+        _settings.update { current ->
+            val next = transform(current)
+            next.copy(
+                targetHeight = next.targetHeight.coerceIn(400, displaySpec.maxSliceHeightPx),
+                overlap = next.overlap.coerceIn(100, 160),
+            )
+        }
+        // 解耦：裁边/高度/重叠变化都不清空 manualCuts（source 坐标），由映射层过滤越界点。
         // 重新估算片数
         val src = _source.value ?: return
-        val s = _settings.value
-        val contentH = if (s.cropMargins) {
-            src.height - src.margins.top - src.margins.bottom
-        } else {
-            src.height
-        }.coerceAtLeast(1)
-        val plan = SplitPointDetector.plan(
-            contentHeight = contentH,
-            targetSliceHeight = s.targetHeight,
-            overlap = s.overlap,
+        publishPreviewPlan(src, _settings.value)
+    }
+
+    private fun effectiveMargins(src: SourceInfo, settings: ProcessSettings): Margins =
+        if (!settings.cropMargins) Margins(0, 0, 0, 0) else (_manualMargins.value ?: src.margins)
+
+    fun updateManualMargins(transform: (Margins) -> Margins) {
+        val src = _source.value ?: return
+        val next = transform(_manualMargins.value ?: src.margins)
+        _manualMargins.value = next.copy(
+            left = next.left.coerceIn(0, src.width / 2),
+            right = next.right.coerceIn(0, src.width / 2),
+            top = next.top.coerceIn(0, src.height / 2),
+            bottom = next.bottom.coerceIn(0, src.height / 2),
         )
-        _source.value = src.copy(estimatedSlices = plan.sliceCount)
+        publishPreviewPlan(src, _settings.value)
+    }
+
+    fun clearManualMargins() {
+        if (_manualMargins.value == null) return
+        _manualMargins.value = null
+        val src = _source.value ?: return
+        publishPreviewPlan(src, _settings.value)
+    }
+
+    /** 处理页全屏拖动切线：只改内存切点（source 坐标），立即刷新预览计划，不做 IO。 */
+    fun previewManualCut(cutIndex: Int, newContentEnd: Int) {
+        val plan = _previewPlan.value ?: return
+        val currentSource = _manualCuts.value
+            ?: plan.cutEnds.dropLast(1).map { it + plan.contentTop }
+        val cutsContent = currentSource.map { it - plan.contentTop }
+        if (cutIndex !in cutsContent.indices) return
+        val minEnd = if (cutIndex == 0) MIN_SLICE_PX else cutsContent[cutIndex - 1] + MIN_SLICE_PX
+        val maxEnd = cutsContent.getOrNull(cutIndex + 1)?.let { it - MIN_SLICE_PX }
+            ?: (plan.contentHeight - MIN_SLICE_PX)
+        if (maxEnd <= minEnd) return
+        val nextSource = currentSource.toMutableList()
+        nextSource[cutIndex] = SourceCutGeometry.sourceFromContent(
+            newContentEnd.coerceIn(minEnd, maxEnd),
+            plan.contentTop,
+        )
+        _manualCuts.value = nextSource
+        val src = _source.value ?: return
+        publishPreviewPlan(src, _settings.value)
+    }
+
+    /** 处理页全屏长按/点击新增切入点（content 坐标）。 */
+    fun addManualCutPoint(contentY: Int) {
+        val plan = _previewPlan.value ?: return
+        val currentSource = _manualCuts.value
+            ?: plan.cutEnds.dropLast(1).map { it + plan.contentTop }
+        val cutsContent = currentSource.map { it - plan.contentTop }
+        val minGap = _settings.value.overlap + MIN_SLICE_PX
+        val yContent = contentY.coerceIn(MIN_SLICE_PX, plan.contentHeight - MIN_SLICE_PX)
+        if (yContent <= MIN_SLICE_PX || yContent >= plan.contentHeight - MIN_SLICE_PX) return
+        if (cutsContent.any { kotlin.math.abs(it - yContent) < minGap }) return
+        _manualCuts.value = (currentSource + SourceCutGeometry.sourceFromContent(yContent, plan.contentTop)).sorted()
+        val src = _source.value ?: return
+        publishPreviewPlan(src, _settings.value)
+    }
+
+    fun clearManualCuts() {
+        if (_manualCuts.value == null) return
+        _manualCuts.value = null
+        val src = _source.value ?: return
+        publishPreviewPlan(src, _settings.value)
     }
 
     fun openUri(uri: Uri, source: UriAccessSource, flags: Int = 0) {
         if (UriPersistencePolicy.shouldAttemptPersistRead(source, flags)) {
             tryPersistRead(uri)
         }
+        val generation = ++sourceGeneration
+        reprocessJob?.cancel()
+        reprocessJob = null
         viewModelScope.launch {
             _homeState.value = HomeUiState.Loading("正在分析图片…")
+            _source.value = null
             _editor.value = null
+            _overview.value = null
+            _manualCuts.value = null
+            _manualMargins.value = null
+            previewJob?.cancel()
+            previewJob = null
+            _previewPlan.value = null
+            _previewBitmap.value = PreviewBitmapState.Loading
             try {
                 withContext(Dispatchers.IO) { checkReadable(uri) }
                 val info = withContext(Dispatchers.IO) { analyzeUri(uri) }
+                if (generation != sourceGeneration) return@launch
                 _source.value = info
+                publishPreviewPlan(info, _settings.value)
+                refreshPreviewBitmap(info, generation)
                 _homeState.value = HomeUiState.Idle
             } catch (e: Exception) {
+                if (generation != sourceGeneration) return@launch
                 _source.value = null
+                previewJob?.cancel()
+                previewJob = null
+                _previewPlan.value = null
+                _previewBitmap.value = PreviewBitmapState.Empty
                 _homeState.value = HomeUiState.Error(
                     ProcessErrorMessages.logAndFriendly(
                         e,
@@ -211,7 +378,12 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startProcess() {
         val srcInfo = _source.value ?: return
+        if (_editor.value?.isProcessing == true) return
+        reprocessJob?.cancel()
+        reprocessJob = null
         val s = _settings.value
+        val generation = sourceGeneration
+        _overview.value = null
         viewModelScope.launch {
             _editor.value = EditorState(
                 source = srcInfo,
@@ -224,12 +396,14 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             )
             try {
                 val state = withContext(Dispatchers.IO) { processInternal(srcInfo, s) }
+                if (generation != sourceGeneration) return@launch
                 _editor.value = state
                 // 一次性导航事件：仅初始 processing 成功结束时产生；手动切片编辑不产生。
                 processTransition.markCompleted()
                 recentStore.add(srcInfo.uri, srcInfo.width, srcInfo.height, state.slices.size)
                 _recents.value = recentStore.list()
             } catch (e: Exception) {
+                if (generation != sourceGeneration) return@launch
                 val friendly = ProcessErrorMessages.logAndFriendly(e, ProcessErrorMessages.PROCESS_FAILED)
                 _editor.update {
                     it?.copy(isProcessing = false, error = friendly, statusMessage = null)
@@ -252,28 +426,61 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         val region = cr.openInputStream(srcInfo.uri)?.use { BitmapRegionSource.open(it) }
             ?: error("无法打开图片进行切片")
         region.use { src ->
-            val margins = if (s.cropMargins) srcInfo.margins else Margins(0, 0, 0, 0)
+            val margins = effectiveMargins(srcInfo, s)
             val contentH = (src.height - margins.top - margins.bottom).coerceAtLeast(1)
             val contentW = (src.width - margins.left - margins.right).coerceAtLeast(1)
+            // 生成剪辑式编辑页的长图总览（分块解码 + 采样，失败只降级为无总览，不阻断切片）。
+            runCatching {
+                _overview.value = OverviewState(
+                    bitmap = OverviewRenderer.render(
+                        source = src,
+                        contentLeft = margins.left,
+                        contentTop = margins.top,
+                        contentWidth = contentW,
+                        contentHeight = contentH,
+                    ),
+                    contentWidth = contentW,
+                    contentHeight = contentH,
+                )
+            }.onFailure { _overview.value = null }
             // 复用 analyzeUri 已计算的 source-invariant raw energy，不再二次全图扫描
             val colE = srcInfo.columnEnergy
             val rowE = srcInfo.rowEnergy
-            val contentEnergy = if (margins.top + contentH <= rowE.size) {
-                rowE.copyOfRange(margins.top, margins.top + contentH)
+            val manual = _manualCuts.value
+            val plan = if (manual != null) {
+                val contentCuts = SourceCutGeometry.contentCutsFromSource(
+                    manual,
+                    margins.top,
+                    contentH,
+                    MIN_SLICE_PX,
+                )
+                val ends = (contentCuts + contentH).distinct().sorted().toMutableList()
+                if (ends.lastOrNull() != contentH) ends.add(contentH)
+                val ranges = SplitPointDetector.rangesFromCutEnds(contentH, ends, s.overlap)
+                com.changjietu.app.image.analysis.SplitPlan(
+                    contentHeight = contentH,
+                    targetSliceHeight = s.targetHeight,
+                    overlap = s.overlap,
+                    ranges = ranges,
+                )
             } else {
-                FloatArray(contentH) { 1f }
+                val contentEnergy = if (margins.top + contentH <= rowE.size) {
+                    rowE.copyOfRange(margins.top, margins.top + contentH)
+                } else {
+                    FloatArray(contentH) { 1f }
+                }
+                SplitPointDetector.plan(
+                    contentHeight = contentH,
+                    targetSliceHeight = s.targetHeight,
+                    overlap = s.overlap,
+                    rowEnergy = contentEnergy,
+                )
             }
-            val plan = SplitPointDetector.plan(
-                contentHeight = contentH,
-                targetSliceHeight = s.targetHeight,
-                overlap = s.overlap,
-                rowEnergy = contentEnergy,
-            )
             val outDir = File(app.cacheDir, "slices/${System.currentTimeMillis()}").also {
                 it.mkdirs()
             }
-            // 清理旧切片目录，保留最近 3 个
-            cleanupOldSliceDirs(File(app.cacheDir, "slices"), keep = 3)
+            // 清理旧切片目录，保留最近 3 个（保护当前目录）
+            cleanupOldEntries(File(app.cacheDir, "slices"), keep = 3, protect = outDir)
             val slices = ImageSplitter.splitToFiles(
                 SplitRequest(
                     source = src,
@@ -295,16 +502,20 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 contentHeight = contentH,
                 contentWidth = contentW,
                 slices = slices,
+                selectedIndices = slices.indices.toSet(),
                 isProcessing = false,
                 statusMessage = "已生成 ${slices.size} 张",
             )
         }
     }
 
-    private fun cleanupOldSliceDirs(root: File, keep: Int) {
+    private fun cleanupOldEntries(root: File, keep: Int, protect: File?) {
         if (!root.exists()) return
-        val dirs = root.listFiles()?.filter { it.isDirectory }?.sortedByDescending { it.name } ?: return
-        dirs.drop(keep).forEach { it.deleteRecursively() }
+        val entries = root.listFiles()
+            ?.filter { it != protect }
+            ?.sortedByDescending { it.name }
+            ?: return
+        entries.drop(keep).forEach { it.deleteRecursively() }
     }
 
     fun mergeSliceWithNext(index: Int) {
@@ -315,7 +526,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         val b = ranges[index + 1]
         ranges[index] = a.first until b.last + 1
         ranges.removeAt(index + 1)
-        reprocessFromRanges(ranges)
+        reprocessFromRanges(ranges, ed.cropTop, ed.cropBottom)
     }
 
     fun deleteSlice(index: Int) {
@@ -324,24 +535,85 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         if (index !in ed.slices.indices) return
         val ranges = ed.slices.map { it.startY until it.endY }.toMutableList()
         ranges.removeAt(index)
-        reprocessFromRanges(ranges)
+        reprocessFromRanges(ranges, ed.cropTop, ed.cropBottom)
     }
 
-    fun updateCutEnd(cutIndex: Int, newEnd: Int) {
+    /**
+     * 拖动切点手柄时的实时（零 IO）更新：只改 cutEnds 让切点线跟手。
+     * 绝不重切片、绝不产生 ProcessTransition pending（C2F1 导航契约要求手动编辑不误导航）。
+     * cutEnds 末元素 = cropBottom（整体下边界），不是可拖动切点。
+     */
+    fun previewCut(cutIndex: Int, newEnd: Int) {
         val ed = _editor.value ?: return
-        if (cutIndex !in ed.cutEnds.indices) return
+        if (cutIndex !in 0 until ed.cutEnds.lastIndex) return
+        val minEnd = if (cutIndex == 0) {
+            ed.cropTop + MIN_SLICE_PX
+        } else {
+            ed.cutEnds[cutIndex - 1] + MIN_SLICE_PX
+        }
+        val maxEnd = ed.cutEnds[cutIndex + 1] - MIN_SLICE_PX
+        if (maxEnd <= minEnd) return
         val ends = ed.cutEnds.toMutableList()
-        val minEnd = if (cutIndex == 0) 50 else ends[cutIndex - 1] + 50
-        val maxEnd = if (cutIndex == ends.lastIndex) ed.contentHeight else ends[cutIndex + 1] - 50
         ends[cutIndex] = newEnd.coerceIn(minEnd, maxEnd)
-        if (ends.last() != ed.contentHeight) ends[ends.lastIndex] = ed.contentHeight
-        val ranges = SplitPointDetector.rangesFromCutEnds(ed.contentHeight, ends, ed.settings.overlap)
-        reprocessFromRanges(ranges)
+        _editor.value = ed.copy(cutEnds = ends)
     }
 
-    private fun reprocessFromRanges(ranges: List<IntRange>) {
+    /** 拖动头/尾裁切手柄时的实时更新：只改整体截取范围，松手由 [commitCuts] 统一重切。 */
+    fun previewCrop(top: Int, bottom: Int) {
         val ed = _editor.value ?: return
-        viewModelScope.launch {
+        val minRange = (ed.settings.overlap + MIN_SLICE_PX * 2)
+            .coerceAtMost(ed.contentHeight)
+        val newBottom = bottom.coerceIn(minRange, ed.contentHeight)
+        val newTop = top.coerceIn(0, (newBottom - minRange).coerceAtLeast(0))
+        _editor.value = ed.copy(cropTop = newTop, cropBottom = newBottom)
+    }
+
+    /** 松手时调用一次：按当前 cutEnds / 截取范围重建 ranges，只重切一次。 */
+    fun commitCuts() {
+        val ed = _editor.value ?: return
+        reprocessFromRanges(buildRangesFromEditor(ed), ed.cropTop, ed.cropBottom)
+    }
+
+    /** 在长图上点击新增切入点；距已有切点过近则忽略。 */
+    fun addCutPoint(contentY: Int) {
+        val ed = _editor.value ?: return
+        val minGap = ed.settings.overlap + MIN_SLICE_PX
+        val lo = ed.cropTop + minGap
+        val hi = ed.cropBottom - MIN_SLICE_PX
+        if (hi <= lo) return
+        val y = contentY.coerceIn(lo, hi)
+        if (ed.cutEnds.any { kotlin.math.abs(it - y) < minGap }) return
+        _editor.value = ed.copy(cutEnds = (ed.cutEnds + y).sorted())
+        commitCuts()
+    }
+
+    /**
+     * 由 cutEnds + 整体截取范围推导带重叠的切片 ranges（content 坐标）。
+     * 传 contentHeight = cropBottom，避免 rangesFromCutEnds 再补一次 contentHeight；
+     * 末片 end 固定为 cropBottom，头片 start 固定为 cropTop。
+     */
+    private fun buildRangesFromEditor(ed: EditorState): List<IntRange> {
+        val ov = ed.settings.overlap
+        val minGap = ov + MIN_SLICE_PX
+        val ends = ed.cutEnds
+            .filter { it > ed.cropTop + minGap && it < ed.cropBottom - MIN_SLICE_PX }
+            .distinct()
+            .sorted()
+            .toMutableList()
+        if (ends.lastOrNull() != ed.cropBottom) ends.add(ed.cropBottom)
+        val raw = SplitPointDetector.rangesFromCutEnds(ed.cropBottom, ends, ov)
+        val clamped = raw.map { r ->
+            val s = maxOf(r.first, ed.cropTop)
+            val e = minOf(r.last + 1, ed.cropBottom)
+            if (e > s) s until e else null
+        }.filterNotNull()
+        return clamped.ifEmpty { listOf(ed.cropTop until ed.cropBottom) }
+    }
+
+    private fun reprocessFromRanges(ranges: List<IntRange>, cropTop: Int, cropBottom: Int) {
+        val ed = _editor.value ?: return
+        reprocessJob?.cancel()
+        reprocessJob = viewModelScope.launch {
             _editor.value = ed.copy(isProcessing = true, statusMessage = "重新切片…", error = null)
             try {
                 val updated = withContext(Dispatchers.IO) {
@@ -358,6 +630,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                             ranges = ranges,
                         )
                         val outDir = File(app.cacheDir, "slices/${System.currentTimeMillis()}").also { it.mkdirs() }
+                        cleanupOldEntries(File(app.cacheDir, "slices"), keep = 3, protect = outDir)
                         val slices = ImageSplitter.splitToFiles(
                             SplitRequest(
                                 source = src,
@@ -366,51 +639,250 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                                 outputDir = outDir,
                                 jpegQuality = ed.settings.jpegQuality,
                                 drawBadge = ed.settings.drawBadge,
+                                colEnergy = ed.source.columnEnergy,
+                                rowEnergy = ed.source.rowEnergy,
                             ),
                         )
                         ed.copy(
-                            cutEnds = SplitPointDetector.cutEndsFromRanges(ranges, ed.contentHeight),
+                            cutEnds = SplitPointDetector.cutEndsFromRanges(ranges, cropBottom),
+                            cropTop = cropTop,
+                            cropBottom = cropBottom,
                             slices = slices,
+                            selectedIndices = slices.indices.toSet(),
                             isProcessing = false,
                             statusMessage = "已更新为 ${slices.size} 张",
                         )
                     }
                 }
-                _editor.value = updated
+                if (isActive) _editor.value = updated
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                if (!isActive) return@launch
                 val friendly = ProcessErrorMessages.logAndFriendly(e, ProcessErrorMessages.REPROCESS_FAILED)
                 _editor.value = ed.copy(isProcessing = false, error = friendly, statusMessage = null)
             }
         }
     }
 
-    fun saveToGallery(onResult: (Result<Int>) -> Unit) {
-        val slices = _editor.value?.slices.orEmpty()
+    fun toggleSliceSelection(index: Int) {
+        _editor.update { ed ->
+            if (ed == null || index !in ed.slices.indices) {
+                ed
+            } else {
+                ed.copy(
+                    selectedIndices = if (index in ed.selectedIndices) {
+                        ed.selectedIndices - index
+                    } else {
+                        ed.selectedIndices + index
+                    },
+                )
+            }
+        }
+    }
+
+    fun selectAllSlices() {
+        _editor.update { ed -> ed?.copy(selectedIndices = ed.slices.indices.toSet()) }
+    }
+
+    fun clearSliceSelection() {
+        _editor.update { ed -> ed?.copy(selectedIndices = emptySet()) }
+    }
+
+    fun selectedSlices(): List<SliceOutput> {
+        val ed = _editor.value ?: return emptyList()
+        return ed.selectedIndices.sorted().mapNotNull { ed.slices.getOrNull(it) }
+    }
+
+    fun saveToGallery(onResult: (Result<SaveSummary>) -> Unit) {
+        val slices = selectedSlices()
         if (slices.isEmpty()) {
-            onResult(Result.failure(IllegalStateException("没有可保存的切片")))
+            onResult(Result.failure(IllegalStateException(ProcessErrorMessages.NO_SELECTION)))
             return
         }
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { exportRepo.saveAllToGallery(slices) }
+            val result = withContext(Dispatchers.IO) { exportRepo.saveToGallery(slices) }
             onResult(result)
-            if (result.isSuccess) {
-                _editor.update { it?.copy(statusMessage = "已保存 ${result.getOrNull()} 张到相册") }
+            result.onSuccess { summary ->
+                _editor.update {
+                    it?.copy(
+                        statusMessage = "已保存 ${summary.saved} 张到相册 Pictures/${ExportRepository.ALBUM_NAME}",
+                    )
+                }
+            }
+        }
+    }
+
+    /** ZIP 重命名对话框的预填默认名。 */
+    fun defaultZipName(): String =
+        "longshot_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}"
+
+    /**
+     * 打包选中切片为 ZIP。[requestedName] 为用户自定义名（经 [ZipNameSanitizer] 清洗），
+     * 缓存 ZIP 文件名保持不变以便 FileProvider 分享；保存/展示用自定义名。
+     */
+    fun packageZipToDownloads(
+        requestedName: String? = null,
+        onResult: (Result<SavedZip>) -> Unit,
+    ) {
+        val slices = selectedSlices()
+        if (slices.isEmpty()) {
+            onResult(Result.failure(IllegalStateException(ProcessErrorMessages.NO_SELECTION)))
+            return
+        }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val app = getApplication<Application>()
+                    val root = File(app.cacheDir, "zip").also { it.mkdirs() }
+                    cleanupOldEntries(root, keep = 3, protect = null)
+                    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val zip = File(root, "longshot_$stamp.zip")
+                    val count = SliceZipper.zip(slices, zip)
+                    check(count > 0) { "没有可打包的切片" }
+                    val displayName = ZipNameSanitizer.sanitize(requestedName, "longshot_$stamp")
+                    exportRepo.saveZipToDownloads(zip, displayName).getOrThrow()
+                }
+            }
+            onResult(result)
+            result.onSuccess { saved ->
+                _editor.update {
+                    it?.copy(statusMessage = "已打包 ${slices.size} 张：${saved.locationLabel}")
+                }
             }
         }
     }
 
     fun shareIntent(): Intent? {
-        val slices = _editor.value?.slices.orEmpty()
+        val slices = selectedSlices()
         if (slices.isEmpty()) return null
         return exportRepo.buildShareIntent(slices)
     }
 
+    fun shareZipIntent(zipFile: File): Intent = exportRepo.buildZipShareIntent(zipFile)
+
     fun clearSource() {
+        sourceGeneration++
+        reprocessJob?.cancel()
+        reprocessJob = null
         _source.value = null
         _editor.value = null
+        _overview.value = null
+        resetPreview()
         _homeState.value = HomeUiState.Idle
     }
+
+    private fun resetPreview() {
+        previewJob?.cancel()
+        previewJob = null
+        _previewPlan.value = null
+        _previewBitmap.value = PreviewBitmapState.Empty
+    }
+
+    /** 用与正式切片相同的缝隙计划刷新切线。不解码。 */
+    private fun publishPreviewPlan(src: SourceInfo, settings: ProcessSettings) {
+        val plan = buildPreviewPlan(src, settings)
+        _previewPlan.value = plan
+        if (src.estimatedSlices != plan.sliceCount) {
+            _source.value = src.copy(estimatedSlices = plan.sliceCount)
+        }
+    }
+
+    private fun buildPreviewPlan(src: SourceInfo, settings: ProcessSettings): PreviewPlan {
+        val margins = effectiveMargins(src, settings)
+        val contentH = (src.height - margins.top - margins.bottom).coerceAtLeast(1)
+        val contentW = (src.width - margins.left - margins.right).coerceAtLeast(1)
+        val manual = _manualCuts.value
+        if (manual != null) {
+            val contentCuts = SourceCutGeometry.contentCutsFromSource(
+                manual,
+                margins.top,
+                contentH,
+                MIN_SLICE_PX,
+            )
+            val ends = (contentCuts + contentH).distinct().sorted().toMutableList()
+            if (ends.lastOrNull() != contentH) ends.add(contentH)
+            val ranges = SplitPointDetector.rangesFromCutEnds(contentH, ends, settings.overlap)
+            return PreviewPlan(
+                sliceCount = ranges.size,
+                cutEnds = ends,
+                contentLeft = margins.left,
+                contentTop = margins.top,
+                contentWidth = contentW,
+                contentHeight = contentH,
+                sourceWidth = src.width,
+                sourceHeight = src.height,
+            )
+        }
+        val energy = src.rowEnergy
+        val contentEnergy = if (energy.size >= margins.top + contentH) {
+            energy.copyOfRange(margins.top, margins.top + contentH)
+        } else {
+            FloatArray(contentH) { 1f }
+        }
+        val plan = SplitPointDetector.plan(
+            contentHeight = contentH,
+            targetSliceHeight = settings.targetHeight,
+            overlap = settings.overlap,
+            rowEnergy = contentEnergy,
+        )
+        return PreviewPlan(
+            sliceCount = plan.sliceCount,
+            cutEnds = SplitPointDetector.cutEndsFromRanges(plan.ranges, contentH),
+            contentLeft = margins.left,
+            contentTop = margins.top,
+            contentWidth = contentW,
+            contentHeight = contentH,
+            sourceWidth = src.width,
+            sourceHeight = src.height,
+        )
+    }
+
+    /** 整图总览，分块解码。裁边开关只改叠线，不调用这里。 */
+    private fun refreshPreviewBitmap(info: SourceInfo, generation: Int) {
+        previewJob?.cancel()
+        _previewBitmap.value = PreviewBitmapState.Loading
+        previewJob = viewModelScope.launch {
+            val rendered = try {
+                withContext(Dispatchers.IO) { renderFullOverview(info) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            if (generation != sourceGeneration) return@launch
+            _previewBitmap.value = if (rendered == null) {
+                PreviewBitmapState.Failed
+            } else {
+                PreviewBitmapState.Ready(
+                    OverviewState(
+                        bitmap = rendered,
+                        contentWidth = info.width,
+                        contentHeight = info.height,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun renderFullOverview(info: SourceInfo): ImageBitmap? {
+        val cr = getApplication<Application>().contentResolver
+        val region = cr.openInputStream(info.uri)?.use { BitmapRegionSource.open(it) }
+            ?: return null
+        return region.use { src ->
+            OverviewRenderer.render(
+                source = src,
+                contentLeft = 0,
+                contentTop = 0,
+                contentWidth = info.width,
+                contentHeight = info.height,
+            )
+        }
+    }
 }
+
+/** 手动编辑时相邻切点/边界之间的最小像素间隔，避免产生碎片切片。 */
+private const val MIN_SLICE_PX = 50
 
 /** URI 已失效 / 读取权限已回收（stale）时抛出，映射到「源不可用，请重新选择」恢复文案。 */
 private class SourceUnavailableException : Exception()

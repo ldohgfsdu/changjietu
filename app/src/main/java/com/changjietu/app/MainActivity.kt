@@ -2,13 +2,16 @@ package com.changjietu.app
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -26,6 +29,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // targetSdk 35 默认边到边，系统会在对比度不够时给状态栏加一层遮罩，看起来像顶栏没贴合。
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
         enableEdgeToEdge()
         // 配置重建时 ViewModel 存活并已消费过分享，跳过以避免重复处理原始 Intent；
         // 进程死亡重建时 ViewModel 新建、consumed=false，则重新消费（cold-start 恢复）。
@@ -33,7 +41,16 @@ class MainActivity : ComponentActivity() {
             handleShareIntent(intent)
         }
         setContent {
-            ChangjietuTheme {
+            val darkTheme = isSystemInDarkTheme()
+            // 边到边布局下状态栏/导航栏透明，图标深浅必须随系统深浅色显式设置，
+            // 否则浅色主题会出现白底白图标（顶栏状态栏不适配）。
+            LaunchedEffect(darkTheme) {
+                WindowInsetsControllerCompat(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
+                }
+            }
+            ChangjietuTheme(darkTheme = darkTheme) {
                 val nav = rememberNavController()
                 val source by viewModel.source.collectAsStateWithLifecycle()
                 val pendingShareId by viewModel.pendingShareId.collectAsStateWithLifecycle()
@@ -46,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     val id = pendingShareId
                     if (id != null) {
                         nav.navigate("process") {
+                            popUpTo("home") { inclusive = false }
                             launchSingleTop = true
                         }
                         viewModel.ackSharePending(id)

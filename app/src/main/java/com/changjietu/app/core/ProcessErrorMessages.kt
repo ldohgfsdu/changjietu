@@ -15,6 +15,8 @@ object ProcessErrorMessages {
     const val REPROCESS_FAILED = "重新切片失败，请重试。"
     const val EMPTY_SLICES = "未能生成切片，请检查图片后重试。"
     const val SAVE_FAILED = "保存失败，请检查存储权限后重试。"
+    const val ZIP_FAILED = "ZIP 打包失败，请检查存储权限后重试。"
+    const val NO_SELECTION = "请至少选择一张切片。"
     const val SHARE_EMPTY = "暂无切片可分享。"
 
     fun logAndFriendly(e: Throwable, friendly: String, tag: String = TAG): String {

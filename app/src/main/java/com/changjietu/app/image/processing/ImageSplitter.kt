@@ -86,6 +86,9 @@ object DefaultSliceWriter : SliceWriter {
                 )
             }
             return output.width to output.height
+        } catch (e: Exception) {
+            outFile.delete()
+            throw e
         } finally {
             if (!output.isRecycled) output.recycle()
         }
@@ -112,53 +115,58 @@ object ImageSplitter {
         request.outputDir.mkdirs()
 
         val results = mutableListOf<SliceOutput>()
-        request.plan.ranges.forEachIndexed { index, range ->
-            val absTop = contentTop + range.first
-            val absBottom = contentTop + range.last + 1
-            val label = "%02d/%02d".format(index + 1, total)
-            val name = "${request.filePrefix}_%02d_of_%02d.jpg".format(index + 1, total)
-            val out = File(request.outputDir, name)
-            // 为单片切出对应能量（源坐标切片），用于角标安全位置决策
-            val sliceCol = request.colEnergy?.let { e ->
-                if (contentRight > contentLeft && contentRight <= e.size) {
-                    e.copyOfRange(contentLeft, contentRight)
-                } else {
-                    null
+        try {
+            request.plan.ranges.forEachIndexed { index, range ->
+                val absTop = contentTop + range.first
+                val absBottom = contentTop + range.last + 1
+                val label = "%02d/%02d".format(index + 1, total)
+                val name = "${request.filePrefix}_%02d_of_%02d.jpg".format(index + 1, total)
+                val out = File(request.outputDir, name)
+                // 为单片切出对应能量（源坐标切片），用于角标安全位置决策
+                val sliceCol = request.colEnergy?.let { e ->
+                    if (contentRight > contentLeft && contentRight <= e.size) {
+                        e.copyOfRange(contentLeft, contentRight)
+                    } else {
+                        null
+                    }
                 }
-            }
-            val sliceRow = request.rowEnergy?.let { e ->
-                if (absBottom > absTop && absBottom <= e.size) {
-                    e.copyOfRange(absTop, absBottom)
-                } else {
-                    null
+                val sliceRow = request.rowEnergy?.let { e ->
+                    if (absBottom > absTop && absBottom <= e.size) {
+                        e.copyOfRange(absTop, absBottom)
+                    } else {
+                        null
+                    }
                 }
+                val (w, h) = writer.writeSlice(
+                    source = src,
+                    left = contentLeft,
+                    top = absTop,
+                    right = contentRight,
+                    bottom = absBottom,
+                    badgeLabel = if (request.drawBadge) label else null,
+                    outFile = out,
+                    jpegQuality = request.jpegQuality,
+                    sliceColEnergy = sliceCol,
+                    sliceRowEnergy = sliceRow,
+                )
+                results.add(
+                    SliceOutput(
+                        index = index,
+                        total = total,
+                        startY = range.first,
+                        endY = range.last + 1,
+                        width = w,
+                        height = h,
+                        file = out,
+                        label = label,
+                    ),
+                )
             }
-            val (w, h) = writer.writeSlice(
-                source = src,
-                left = contentLeft,
-                top = absTop,
-                right = contentRight,
-                bottom = absBottom,
-                badgeLabel = if (request.drawBadge) label else null,
-                outFile = out,
-                jpegQuality = request.jpegQuality,
-                sliceColEnergy = sliceCol,
-                sliceRowEnergy = sliceRow,
-            )
-            results.add(
-                SliceOutput(
-                    index = index,
-                    total = total,
-                    startY = range.first,
-                    endY = range.last + 1,
-                    width = w,
-                    height = h,
-                    file = out,
-                    label = label,
-                ),
-            )
+            return results
+        } catch (e: Exception) {
+            request.outputDir.deleteRecursively()
+            throw e
         }
-        return results
     }
 
     fun decodeBounds(input: java.io.InputStream): Pair<Int, Int>? {
