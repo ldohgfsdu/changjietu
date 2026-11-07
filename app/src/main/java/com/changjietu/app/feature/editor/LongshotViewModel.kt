@@ -19,6 +19,7 @@ import com.changjietu.app.core.UriAccessSource
 import com.changjietu.app.core.UriPersistencePolicy
 import com.changjietu.app.core.ZipNameSanitizer
 import com.changjietu.app.feature.export.ExportRepository
+import com.changjietu.app.feature.export.OrderedSlices
 import com.changjietu.app.feature.export.SaveSummary
 import com.changjietu.app.feature.export.SavedZip
 import com.changjietu.app.feature.export.SliceZipper
@@ -751,7 +752,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectedSlices(): List<SliceOutput> {
         val ed = _editor.value ?: return emptyList()
-        return ed.selectedIndices.sorted().mapNotNull { ed.slices.getOrNull(it) }
+        return OrderedSlices.ascending(ed.selectedIndices.sorted().mapNotNull { ed.slices.getOrNull(it) })
     }
 
     fun saveToGallery(onResult: (Result<SaveSummary>) -> Unit) {
