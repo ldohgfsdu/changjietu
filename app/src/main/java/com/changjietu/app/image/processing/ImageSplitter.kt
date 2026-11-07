@@ -108,24 +108,34 @@ object ImageSplitter {
     ): List<SliceOutput> {
         val src = request.source
         val m = request.margins
-        val contentLeft = m.left
-        val contentTop = m.top
-        val contentRight = src.width - m.right
         val total = request.plan.ranges.size
+        // 自动计划/手动切线均以同一份绝对源图坐标输出；no-overlap 必须无缝连续。
+        if (request.plan.overlap == 0 && request.plan.ranges.firstOrNull()?.first == 0 &&
+            request.plan.ranges.lastOrNull()?.last == request.plan.contentHeight - 1
+        ) {
+            // 刻意删除单片后可能不连续，不能把删除操作视为需要自动补齐的区域。
+            val contiguous = request.plan.ranges.zipWithNext().all { (a, b) ->
+                a.last + 1 == b.first
+            }
+            if (contiguous) {
+                SliceGeometry.requireNoOverlapCoverage(request.plan.ranges, request.plan.contentHeight)
+            }
+        }
         request.outputDir.mkdirs()
 
         val results = mutableListOf<SliceOutput>()
         try {
             request.plan.ranges.forEachIndexed { index, range ->
-                val absTop = contentTop + range.first
-                val absBottom = contentTop + range.last + 1
+                val rect = SliceGeometry.regionFor(src.width, src.height, m, range)
+                val absTop = rect.top
+                val absBottom = rect.bottom
                 val label = "%02d/%02d".format(index + 1, total)
                 val name = "${request.filePrefix}_%02d_of_%02d.jpg".format(index + 1, total)
                 val out = File(request.outputDir, name)
                 // 为单片切出对应能量（源坐标切片），用于角标安全位置决策
                 val sliceCol = request.colEnergy?.let { e ->
-                    if (contentRight > contentLeft && contentRight <= e.size) {
-                        e.copyOfRange(contentLeft, contentRight)
+                    if (rect.right > rect.left && rect.right <= e.size) {
+                        e.copyOfRange(rect.left, rect.right)
                     } else {
                         null
                     }
@@ -139,16 +149,19 @@ object ImageSplitter {
                 }
                 val (w, h) = writer.writeSlice(
                     source = src,
-                    left = contentLeft,
-                    top = absTop,
-                    right = contentRight,
-                    bottom = absBottom,
+                    left = rect.left,
+                    top = rect.top,
+                    right = rect.right,
+                    bottom = rect.bottom,
                     badgeLabel = if (request.drawBadge) label else null,
                     outFile = out,
                     jpegQuality = request.jpegQuality,
                     sliceColEnergy = sliceCol,
                     sliceRowEnergy = sliceRow,
                 )
+                check(w == rect.width && h == rect.height) {
+                    "Output mismatch for $label: expected ${rect.width}x${rect.height}, got ${w}x${h}"
+                }
                 results.add(
                     SliceOutput(
                         index = index,
