@@ -30,6 +30,7 @@ import com.changjietu.app.image.analysis.QualityAnalyzer
 import com.changjietu.app.image.analysis.SplitPointDetector
 import com.changjietu.app.image.processing.BitmapRegionSource
 import com.changjietu.app.image.processing.ImageSplitter
+import com.changjietu.app.image.processing.SliceGeometry
 import com.changjietu.app.image.processing.OverviewRenderer
 import com.changjietu.app.image.processing.RegionDecoderUtil
 import com.changjietu.app.image.processing.SliceOutput
@@ -526,6 +527,10 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     overlap = s.overlap,
                     rowEnergy = contentEnergy,
                 )
+            }
+            if (s.overlap == 0) {
+                // 初始计划必须完整覆盖所有源图行且严格无重复。
+                SliceGeometry.requireNoOverlapCoverage(plan.ranges, contentH)
             }
             val outDir = File(app.cacheDir, "slices/${System.currentTimeMillis()}").also {
                 it.mkdirs()
