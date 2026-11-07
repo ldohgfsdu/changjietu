@@ -22,7 +22,7 @@ object SliceZipper {
             var count = 0
             val usedNames = HashSet<String>()
             ZipOutputStream(BufferedOutputStream(FileOutputStream(part))).use { zos ->
-                for (slice in slices) {
+                for (slice in OrderedSlices.ascending(slices)) {
                     val entryName = uniqueEntryName(slice.file.name, usedNames)
                     val entry = ZipEntry(entryName).apply {
                         time = slice.file.lastModified()
