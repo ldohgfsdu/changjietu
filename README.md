@@ -16,7 +16,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.0`（versionCode 2）
+- 版本：`0.2.4`（versionCode 6）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证：`testDebugUnitTest` 108 用例 / 0 失败；`assembleRelease`、`lintDebug` 通过；**无 adb 设备，运行态未实测**
@@ -31,7 +31,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 | 屏幕自适应 | 自动读取设备屏幕像素，单张高度默认 = 屏幕长边，可下调到 50% |
 | 不缩放 | 切片保持源图内容宽度与原始像素；超宽源图只提示、不横向裁切 |
 | 缝隙感知 | 低能量空白带检测 + 缝隙宽度/距离/高度评分；尾部过短自动重排 |
-| 重叠 | 100–160 px，默认 120 px |
+| 重叠 | **默认 0 px**（严格按切线分割），可选 1–160 px，用于主动保留上下文 |
 | 页码角标 | 半透明 `01/N`，自动避开正文（可关闭） |
 | 预览 | 逐张选择 / 全选 / 拖切点 / 合并 / 删除 / 重新编号 |
 | 保存 | 选中切片保存到相册目录 `Pictures/changjietu` |
@@ -92,11 +92,11 @@ changjietu.release.keyPassword=...
 ## 安装与交付
 
 ```bash
-adb install -r download/changjietu-0.2.0-release.apk
+adb install -r https://github.com/ldohgfsdu/changjietu/releases/latest
 ```
 
-- 仓库内：`download/changjietu-0.2.0-release.apk`（同名覆盖 `changjietu-release-latest.apk`），附 `.sha256`
-- 设备共享存储：`/sdcard/Download/changjietu-0.2.0-release.apk`
+- 正式分发：GitHub Releases（APK 和同名 `.sha256` 两个资产，不将 APK 写入源码仓库）
+- 设备安装：从 GitHub Releases 下载 APK，保持 Release 签名连续性
 - 构建产物：`app/build/outputs/apk/release/app-release.apk`
 
 ## 推荐使用路径
@@ -109,7 +109,7 @@ adb install -r download/changjietu-0.2.0-release.apk
 
 - **单张高度上限** = 设备屏幕长边（例如 1080 × 2400 的设备，单张最高 2400 px）；可在处理页下调到 50%
 - **宽度** = 源图内容宽度（裁边后），不缩放；若源图宽于手机屏幕，界面会提示但保留完整宽度
-- **重叠** = 100–160 px；切点优先落在低能量空白带，尾部过短时重排为更均衡的两片
+- **重叠** = 默认 0 px（无重复）；需要上下文才主动设为 1–160 px；切点优先落在低能量空白带，尾部过短时重排为更均衡的两片
 - **格式** = JPEG 95%，原始分辨率；不做 AI 超分、不做 OCR
 
 ## 质量等级
@@ -140,3 +140,11 @@ app/src/main/java/com/changjietu/app/
 2. `docs/CURRENT_STATUS.md`
 3. `docs/DECISIONS.md`
 4. `GOAL.md`
+
+## 裁切与分享顺序（v0.2.4）
+
+- 默认 **0px 重叠**：每条蓝色切线是上片的 **exclusive end**，下一片从同一 Y 坐标开始；两张图片不会因为隐藏的默认重叠重复正文。
+- 可主动输入非零重叠（1–160px）用于 AI 上下文；这时重复区域是**明确选择的行为**，不是额外偷偷裁进来的区域。
+- 内容分析优先在低能量空白带中选择切线；如果原图没有安全空白带，仍可能需要人工精细编辑，应用不能保证任意截图完全不截字。
+- 分享、相册、ZIP 均按源图从上到下排序，ZIP 内的切片文件名含 01/N 等序号。Android 的 `ACTION_SEND_MULTIPLE` 不能约束**接收应用**是否重新排序；严格保持顺序请使用 ZIP 或按文件名顺序逐张导入。
+- 预览低分辨率不代表输出被缩放；最终输出按原图像素矩形解码，逐片校验结果尺寸。
