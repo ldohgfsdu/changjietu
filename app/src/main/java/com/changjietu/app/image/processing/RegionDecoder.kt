@@ -65,7 +65,7 @@ object RegionDecoderUtil {
      */
     fun computeEnergyMaps(
         source: RegionSource,
-        targetSampleWidth: Int = 64,
+        targetSampleWidth: Int = 256,
     ): Pair<FloatArray, FloatArray> {
         val w = source.width
         val h = source.height
