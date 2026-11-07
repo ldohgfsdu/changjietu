@@ -81,6 +81,7 @@ fun OverviewEditor(
     windowTop: Int = 0,
     windowHeight: Int? = null,
     onDetailClick: (() -> Unit)? = null,
+    onCollapse: (() -> Unit)? = null,
 ) {
     var addMode by remember { mutableStateOf(false) }
     val totalHeight = editor.contentHeight.coerceAtLeast(1)
@@ -105,6 +106,7 @@ fun OverviewEditor(
             enabled = enabled,
             onToggleAddMode = { addMode = !addMode },
             onDetailClick = onDetailClick,
+            onCollapse = onCollapse,
         )
         if (overview == null) {
             Box(
@@ -265,33 +267,35 @@ private fun OverviewHeader(
     enabled: Boolean,
     onToggleAddMode: () -> Unit,
     onDetailClick: (() -> Unit)? = null,
+    onCollapse: (() -> Unit)? = null,
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("剪辑视图", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-            Text(
-                if (addMode) "点击长图任意位置新增切入点" else "$cutCount 个切点 · 拖动预览，长按可加切点",
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                fontSize = 11.sp,
-            )
+    // 双行布局防止精细编辑与新增切点在窄屏上把状态文字压到多行。
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("剪辑视图", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text("$cutCount 个切点", fontSize = 11.sp, color = MiuixTheme.colorScheme.onBackgroundVariant)
+            }
+            if (onDetailClick != null) {
+                TextButton(text = "精细编辑", onClick = onDetailClick, enabled = enabled)
+            }
+            if (onCollapse != null) {
+                TextButton(text = "收起", onClick = onCollapse, enabled = enabled)
+            }
         }
-        if (onDetailClick != null) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (addMode) "点按长图添加切点" else "拖动切线调整位置",
+                fontSize = 11.sp,
+                color = MiuixTheme.colorScheme.onBackgroundVariant,
+                modifier = Modifier.weight(1f),
+            )
             TextButton(
-                text = "精细编辑",
-                onClick = onDetailClick,
+                text = if (addMode) "完成新增" else "＋ 添加切点",
+                onClick = onToggleAddMode,
                 enabled = enabled,
             )
         }
-        TextButton(
-            text = if (addMode) "取消新增" else "＋ 新增切入点",
-            onClick = onToggleAddMode,
-            enabled = enabled,
-        )
     }
 }
 
