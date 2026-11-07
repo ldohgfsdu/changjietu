@@ -523,7 +523,7 @@ private fun BottomActions(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("分享所选 · $selectedCount 张", fontSize = 16.sp)
+                Text("分享所选 · $selectedCount 张", fontSize = 16.sp, color = if (enabled) Color.White else MiuixTheme.colorScheme.onBackgroundVariant)
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
