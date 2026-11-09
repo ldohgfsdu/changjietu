@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
-JAR="\${TLA_JAR:-$ROOT/.cache/tla2tools-v1.8.0.jar}"
+JAR="${TLA_JAR:-$ROOT/.cache/tla2tools-v1.8.0.jar}"
 
 if [[ ! -f "$JAR" ]]; then
   mkdir -p "$(dirname "$JAR")"
