@@ -32,3 +32,36 @@ jobs:
           java-version: "17"
       - name: Run TLC models and negative-control mutations
         run: bash formal/longshot/verify.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+      - name: Generate pstack statecharts from checked models
+        shell: bash
+        env:
+          TLA2TOOLS: ${{ github.workspace }}/.cache/tla2tools-v1.8.0.jar
+          JAVA: java
+          PSTACK_REV: 6b0300214a09fd6029cfb7077043125758cd1fd2
+        run: |
+          set -euo pipefail
+          plugin="$RUNNER_TEMP/cursor-pstack"
+          git clone --quiet --filter=blob:none --no-checkout https://github.com/cursor/plugins.git "$plugin"
+          git -C "$plugin" sparse-checkout set pstack/skills/statechart/scripts
+          git -C "$plugin" fetch --quiet --depth 1 origin "$PSTACK_REV"
+          git -C "$plugin" checkout --quiet "$PSTACK_REV"
+          spec="$GITHUB_WORKSPACE/formal/longshot"
+          mkdir -p "$RUNNER_TEMP/statecharts"
+          for model in ShareIngress ProcessResult SliceCuts ExportSelection; do
+            node "$plugin/pstack/skills/statechart/scripts/statechart.ts" "$spec/specs/$model.tla" \
+              --config "$spec/specs/$model.cfg" \
+              --view "$spec/views/$model.ts" \
+              --out "$RUNNER_TEMP/statecharts/$model"
+            test -s "$RUNNER_TEMP/statecharts/$model/chart.mmd"
+            test -s "$RUNNER_TEMP/statecharts/$model/report.md"
+          done
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: formal-statecharts
+          path: ${{ runner.temp }}/statecharts/
+          if-no-files-found: error
+          retention-days: 30
