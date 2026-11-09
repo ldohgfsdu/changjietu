@@ -46,7 +46,7 @@ for name, (path, fragment) in checks.items():
     text = (root / path).read_text()
     if fragment not in text:
         raise AssertionError(f"Missing Kotlin anchor: {name} at {path}")
-    mutant = text.replace(fragment, "/* removed safety step */", 1)
+    mutant = text.replace(fragment, "/* removed safety step */")
     if fragment in mutant:
         raise AssertionError(f"Anchor mutation not detected: {name}")
     print(f"ANCHOR PASS: {name}; removal mutant rejected")
