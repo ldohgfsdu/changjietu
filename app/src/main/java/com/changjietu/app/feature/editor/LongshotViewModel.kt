@@ -129,6 +129,8 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     fun loadDetailWindow(top: Int, height: Int) {
         val ed = _editor.value ?: return
         detailJob?.cancel()
+        _detailOverview.value = null // 不向新窗口显示上一窗口的过期图像
+        val generation = sourceGeneration
         detailJob = viewModelScope.launch {
             val rendered: OverviewState? = try {
                 withContext(Dispatchers.IO) {
@@ -136,27 +138,36 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     val region = app.contentResolver.openInputStream(ed.source.uri)?.use {
                         BitmapRegionSource.open(it)
                     } ?: return@withContext null
-                    val m = ed.appliedMargins
-                    val w = ed.contentWidth
-                    val h = height.coerceIn(1, ed.contentHeight)
-                    val t = top.coerceIn(0, (ed.contentHeight - h).coerceAtLeast(0))
-                    val handle = region.decodeRegion(
-                        m.left,
-                        m.top + t,
-                        m.left + w,
-                        m.top + t + h,
-                        sampleSize = 1,
-                    )
-                    val bmp = handle?.bitmapOrNull
-                    val img = bmp?.asImageBitmap()
-                    handle?.close()
-                    region.close()
-                    if (img != null) OverviewState(bitmap = img, contentWidth = w, contentHeight = h) else null
+                    region.use { src ->
+                        val m = ed.appliedMargins
+                        val w = ed.contentWidth
+                        val h = height.coerceIn(1, ed.contentHeight)
+                        val t = top.coerceIn(0, (ed.contentHeight - h).coerceAtLeast(0))
+                        val handle = src.decodeRegion(
+                            m.left,
+                            m.top + t,
+                            m.left + w,
+                            m.top + t + h,
+                            sampleSize = 1,
+                        ) ?: return@use null
+                        // asImageBitmap() 只包装 Android Bitmap，不复制像素。
+                        // 先生成独立快照，再关闭会 recycle 原 Bitmap 的解码句柄。
+                        handle.use { hdl ->
+                            hdl.bitmapOrNull
+                                ?.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                                ?.asImageBitmap()
+                                ?.let { img ->
+                                    OverviewState(bitmap = img, contentWidth = w, contentHeight = h)
+                                }
+                        }
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 null
             }
-            if (rendered != null) _detailOverview.value = rendered
+            if (isActive && generation == sourceGeneration) _detailOverview.value = rendered
         }
     }
 
