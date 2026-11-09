@@ -5,7 +5,8 @@
 # which points here. This wrapper resolves the real SDK aapt2:
 #   - x86-64/arm64(apple): executes the SDK aapt2 natively
 #   - arm64 Linux: SDK aapt2 is an x86-64 ELF; run it under qemu-x86_64
-# SDK path is resolved from local.properties (sdk.dir); env AAPT2_REAL overrides all.
+# SDK path is resolved from local.properties (sdk.dir), build-tools version from
+# app/build.gradle.kts; env AAPT2_REAL overrides all.
 #
 # C3F1: fail fast with clear remediation on missing prerequisites, instead of an
 # obscure daemon / processDebugResources startup failure.
@@ -17,12 +18,17 @@ if [ -z "$AAPT2_BIN" ]; then
   if [ -f "$DIR/../local.properties" ]; then
     SDK_DIR=$(sed -n 's/^sdk\.dir=//p' "$DIR/../local.properties" | tail -n1)
   fi
-  AAPT2_BIN="$SDK_DIR/build-tools/35.0.0/aapt2"
+  BUILD_TOOLS=$(sed -n 's/^[[:space:]]*buildToolsVersion[[:space:]]*=[[:space:]]*"//p' "$DIR/../app/build.gradle.kts" | head -n1 | cut -d '"' -f1)
+  if [ -z "$BUILD_TOOLS" ]; then
+    echo "changjietu/wrapper: cannot read buildToolsVersion from app/build.gradle.kts" >&2
+    exit 1
+  fi
+  AAPT2_BIN="$SDK_DIR/build-tools/$BUILD_TOOLS/aapt2"
 fi
 
 if [ ! -x "$AAPT2_BIN" ]; then
   echo "changjietu/wrapper: SDK aapt2 not found or not executable: $AAPT2_BIN" >&2
-  echo "Install Android SDK Build Tools 35.0.0, or set AAPT2_REAL to a working aapt2." >&2
+  echo "Install the Android SDK Build Tools version from app/build.gradle.kts, or set AAPT2_REAL to a working aapt2." >&2
   exit 1
 fi
 

@@ -40,9 +40,13 @@ jobs:
           set -euo pipefail
           sdkmanager_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
           test -x "$sdkmanager_bin"
-          "$sdkmanager_bin" "platforms;android-35" "build-tools;35.0.0"
+          compile_sdk=$(sed -nE 's/^[[:space:]]*compileSdk[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n1)
+          build_tools=$(sed -nE 's/^[[:space:]]*buildToolsVersion[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)
+          [[ -n "$compile_sdk" && -n "$build_tools" ]] || { echo "::error::Cannot read compileSdk/buildToolsVersion from app/build.gradle.kts"; exit 1; }
+          "$sdkmanager_bin" "platforms;android-$compile_sdk" "build-tools;$build_tools"
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
           chmod +x gradlew tools/aapt2
+          echo "BUILD_TOOLS_VERSION=$build_tools" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v6
       - name: Full debug lint, unit tests, debug build, and release vital lint
         run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:lintVitalRelease --no-daemon
@@ -75,9 +79,13 @@ jobs:
           set -euo pipefail
           sdkmanager_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
           test -x "$sdkmanager_bin"
-          "$sdkmanager_bin" "platforms;android-35" "build-tools;35.0.0"
+          compile_sdk=$(sed -nE 's/^[[:space:]]*compileSdk[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n1)
+          build_tools=$(sed -nE 's/^[[:space:]]*buildToolsVersion[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)
+          [[ -n "$compile_sdk" && -n "$build_tools" ]] || { echo "::error::Cannot read compileSdk/buildToolsVersion from app/build.gradle.kts"; exit 1; }
+          "$sdkmanager_bin" "platforms;android-$compile_sdk" "build-tools;$build_tools"
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
           chmod +x gradlew tools/aapt2
+          echo "BUILD_TOOLS_VERSION=$build_tools" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v6
       - name: Validate release version and determine previous signed version
         id: meta
@@ -86,8 +94,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts)
-          code=$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts)
+          version=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)
+          code=$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n1)
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid versionName"; exit 1; }
           [[ "$code" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid versionCode"; exit 1; }
           tag="v$version"
@@ -100,9 +108,10 @@ jobs:
             echo "::error::Release $tag already exists; refusing to replace it."
             exit 1
           fi
-          previous=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name')
+          previous=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '[.[] | select(.draft == false and .prerelease == false)] | sort_by(.created_at) | last | .tag_name // empty')
           [[ "$previous" != "$tag" && -n "$previous" ]] || { echo "::error::Invalid previous release"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "apk=changjietu-$version-release.apk" >> "$GITHUB_OUTPUT"
           echo "previous=$previous" >> "$GITHUB_OUTPUT"
@@ -134,13 +143,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_TAG: ${{ steps.meta.outputs.previous }}
           APK_NAME: ${{ steps.meta.outputs.apk }}
+          RELEASE_CODE: ${{ steps.meta.outputs.code }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/previous"
           gh release download "$PREVIOUS_TAG" --pattern "changjietu-*-release.apk" --dir "$RUNNER_TEMP/previous"
           old_apks=("$RUNNER_TEMP"/previous/changjietu-*-release.apk)
           [[ ${#old_apks[@]} -eq 1 && -f "${old_apks[0]}" ]] || { echo "::error::Expected exactly one previous signed APK"; exit 1; }
-          signer="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          signer="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner"
+          aapt="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/aapt2"
+          old_code=$("$aapt" dump badging "${old_apks[0]}" | sed -nE "s/^package:.* versionCode='([0-9]+)'.*/\1/p" | head -n1)
+          [[ -n "$old_code" ]] || { echo "::error::Cannot read previous APK versionCode"; exit 1; }
+          if (( RELEASE_CODE <= old_code )); then
+            echo "::error::versionCode must increase: previous=$old_code, new=$RELEASE_CODE"
+            exit 1
+          fi
           "$signer" verify "${old_apks[0]}"
           "$signer" verify app/build/outputs/apk/release/app-release.apk
           old_cert=$("$signer" verify --print-certs "${old_apks[0]}" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
