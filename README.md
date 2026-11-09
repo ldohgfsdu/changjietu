@@ -16,7 +16,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.6`（versionCode 8；发布状态以 GitHub Releases 为准）
+- 版本：`0.2.7`（versionCode 9；发布状态以 GitHub Releases 为准）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
@@ -93,7 +93,7 @@ changjietu.release.keyPassword=...
 
 ```bash
 # 先在 Releases 页面下载对应版本的 APK 到当前目录
-adb install -r changjietu-0.2.6-release.apk
+adb install -r changjietu-0.2.7-release.apk
 ```
 
 - 正式分发：GitHub Releases（APK 和同名 `.sha256` 两个资产，不将 APK 写入源码仓库）
@@ -141,6 +141,12 @@ app/src/main/java/com/changjietu/app/
 2. `docs/CURRENT_STATUS.md`
 3. `docs/DECISIONS.md`
 4. `GOAL.md`
+
+## v0.2.7 调整切线导航可见性修复
+
+- v0.2.6 实机截图确认「上一条」「下一条」图标未正常显示，改为固定 78dp 宽的文字入口和 48dp 高触控区。
+- 中间「第 X/N 条 · 定位」可直接滚动到当前切线，首个切点不再必须靠手动滚动查找。
+- 保留原图裁切算法、相册保存、ZIP 和分享行为；单元测试仅能阻止源码结构回退，仍需真机视觉/交互复验。
 
 ## v0.2.6 实机截图 UI 补丁
 
