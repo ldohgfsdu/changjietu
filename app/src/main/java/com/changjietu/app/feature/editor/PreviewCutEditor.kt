@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -43,7 +44,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.changjietu.app.core.icons.AppIcons
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -109,52 +109,67 @@ fun PreviewCutEditor(
             val handleSizePx = with(density) { HANDLE_SIZE.toPx() }
 
             Column(Modifier.fillMaxSize()) {
-                // 实机窄屏的长文字按钮过大；改为固定 48dp 热区，不压缩图片。
+                // 实机 v0.2.6 证明自定义箭头图标不可见。
+                // 使用固定宽度的文字触控控件，避免自定义 ImageVector 色彩兼容风险。
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val canPrevious = cuts.isNotEmpty() && selectedCutIndex > 0
+                    val canNext = cuts.isNotEmpty() && selectedCutIndex < cuts.lastIndex
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clickable(enabled = cuts.isNotEmpty() && selectedCutIndex > 0) {
+                            .width(78.dp)
+                            .height(48.dp)
+                            .clickable(enabled = canPrevious, onClickLabel = "上一条切线") {
                                 val next = selectedCutIndex - 1
                                 selectedCutIndex = next
                                 jumpTo(next, viewHeightPx, viewportHeightPx)
                             },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            AppIcons.ChevronUp,
-                            contentDescription = "上一条切线",
-                            modifier = Modifier.size(22.dp),
-                            tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        Text(
+                            "上一条",
+                            fontSize = 14.sp,
+                            color = if (canPrevious) MiuixTheme.colorScheme.primary
+                                else MiuixTheme.colorScheme.onSurfaceSecondary,
                         )
                     }
-                    Text(
-                        if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条",
-                        fontSize = 12.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceSecondary,
-                    )
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clickable(enabled = cuts.isNotEmpty() && selectedCutIndex < cuts.lastIndex) {
+                            .weight(1f)
+                            .height(48.dp)
+                            .clickable(enabled = cuts.isNotEmpty(), onClickLabel = "定位当前切线") {
+                                jumpTo(selectedCutIndex, viewHeightPx, viewportHeightPx)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条 · 定位",
+                            fontSize = 12.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(78.dp)
+                            .height(48.dp)
+                            .clickable(enabled = canNext, onClickLabel = "下一条切线") {
                                 val next = selectedCutIndex + 1
                                 selectedCutIndex = next
                                 jumpTo(next, viewHeightPx, viewportHeightPx)
                             },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            AppIcons.ChevronDown,
-                            contentDescription = "下一条切线",
-                            modifier = Modifier.size(22.dp),
-                            tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        Text(
+                            "下一条",
+                            fontSize = 14.sp,
+                            color = if (canNext) MiuixTheme.colorScheme.primary
+                                else MiuixTheme.colorScheme.onSurfaceSecondary,
                         )
                     }
                 }
