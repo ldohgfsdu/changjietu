@@ -50,6 +50,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Full debug lint, unit tests, debug build, and release vital lint
         run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:lintVitalRelease --no-daemon
+      - name: Required bounded formal verification and negative controls
+        run: bash formal/longshot/verify.sh
       - name: Print full lint report on failure
         if: failure()
         run: |
@@ -166,7 +168,7 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
           sha256sum "$APK_NAME" > "$APK_NAME.sha256"
           sha256sum --check "$APK_NAME.sha256"
-      - name: Publish immutable-version Release with APK and SHA-256
+      - name: Upload to draft Release, verify remote assets, then publish
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
@@ -175,8 +177,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # A failed upload, checksum, signature or download must not expose a public Release.
           gh release create "$RELEASE_TAG" \
             "$APK_NAME" "$APK_NAME.sha256" \
+            --draft \
             --target "$GITHUB_SHA" \
             --title "changjietu $RELEASE_VERSION" \
-            --notes "Android release $RELEASE_TAG. Unit tests, full lintDebug and signed release build passed. Signature verified against the preceding release; APK SHA-256 attached."
+            --notes "Android release $RELEASE_TAG. Unit tests, formal verification, full lint, and signed release build passed. Signature verified against the preceding release; APK SHA-256 attached."
+          remote_dir="$RUNNER_TEMP/release-readback"
+          mkdir -p "$remote_dir"
+          gh release download "$RELEASE_TAG" --pattern "$APK_NAME" --dir "$remote_dir"
+          gh release download "$RELEASE_TAG" --pattern "$APK_NAME.sha256" --dir "$remote_dir"
+          cmp "$APK_NAME.sha256" "$remote_dir/$APK_NAME.sha256"
+          cmp "$APK_NAME" "$remote_dir/$APK_NAME"
+          (cd "$remote_dir" && sha256sum --check "$APK_NAME.sha256")
+          signer="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner"
+          "$signer" verify --print-certs "$remote_dir/$APK_NAME"
+          local_cert=$("$signer" verify --print-certs "$APK_NAME" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)
+          remote_cert=$("$signer" verify --print-certs "$remote_dir/$APK_NAME" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)
+          [[ -n "$local_cert" && "$local_cert" == "$remote_cert" ]] || {
+            echo "::error::Read-back signer differs from validated local signer"; exit 1;
+          }
+          asset_count=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets | length')
+          [[ "$asset_count" == "2" ]] || {
+            echo "::error::Draft Release does not have exactly the APK and checksum assets"; exit 1;
+          }
+          gh release edit "$RELEASE_TAG" --draft=false
+          [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" == "false" ]] || {
+            echo "::error::Release did not become public"; exit 1;
+          }
+          echo "Published $RELEASE_TAG after verified remote APK read-back."
