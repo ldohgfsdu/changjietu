@@ -9,12 +9,20 @@
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.6** | `app/build.gradle.kts` |
-| versionCode | **8** | 同上 |
+| versionName | **0.2.7** | `app/build.gradle.kts` |
+| versionCode | **9** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 
 > 当前版本号用于本轮补丁发布；是否已正式交付以 GitHub Releases 和成功的 publish job 为准。下文 §2.1–2.9 是历史批次记录，不是 2026-11-09 的当前版本。
+
+---
+
+## 2026-11-09：v0.2.7 切线导航可见性修复
+
+- 实机截图证实 v0.2.6 的上一条、下一条箭头不可见；替换成固定宽度可见文本与明确的点击区域。
+- 中间切点计数增加「定位」交互，支持一键滚动至当前切点。
+- 不修改裁切几何、编码及导出流程；真机复验仍须执行，不能以 CI 通过替代。
 
 ---
 
