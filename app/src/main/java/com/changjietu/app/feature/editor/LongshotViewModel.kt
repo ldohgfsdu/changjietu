@@ -639,7 +639,10 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     /** 松手时调用一次：按当前 cutEnds / 截取范围重建 ranges，只重切一次。 */
     fun commitCuts() {
         val ed = _editor.value ?: return
-        reprocessFromRanges(buildRangesFromEditor(ed), ed.cropTop, ed.cropBottom)
+        val ranges = buildRangesFromEditor(ed)
+        // 按下后松手但像素边界未改变时，禁止无意义的整批 JPEG 重切。
+        if (SliceGeometry.matchesRenderedRanges(ranges, ed.slices)) return
+        reprocessFromRanges(ranges, ed.cropTop, ed.cropBottom)
     }
 
     /** 在长图上点击新增切入点；距已有切点过近则忽略。 */
