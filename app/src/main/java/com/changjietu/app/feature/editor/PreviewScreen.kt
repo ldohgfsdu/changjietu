@@ -373,7 +373,7 @@ fun PreviewScreen(
                     onPreviewCrop = viewModel::previewCrop,
                     onCommit = viewModel::commitCuts,
                     onAddCutPoint = viewModel::addCutPoint,
-                    modifier = Modifier.fillMaxWidth().weight(0.59f),
+                    modifier = Modifier.fillMaxWidth().weight(0.42f),
                     onDetailClick = {
                         detailTop = 0
                         viewModel.loadDetailWindow(0, displaySpec.longSidePx)
@@ -411,7 +411,7 @@ fun PreviewScreen(
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                modifier = Modifier.weight(if (editingExpanded) 0.41f else 1f),
+                modifier = Modifier.weight(if (editingExpanded) 0.58f else 1f),
                 contentPadding = PaddingValues(bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),

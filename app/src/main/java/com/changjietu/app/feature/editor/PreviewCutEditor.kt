@@ -3,6 +3,7 @@ package com.changjietu.app.feature.editor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -42,6 +43,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.changjietu.app.core.icons.AppIcons
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -107,34 +109,54 @@ fun PreviewCutEditor(
             val handleSizePx = with(density) { HANDLE_SIZE.toPx() }
 
             Column(Modifier.fillMaxSize()) {
+                // 实机窄屏的长文字按钮过大；改为固定 48dp 热区，不压缩图片。
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                        .height(52.dp)
+                        .padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(
-                        text = "上一条切线",
-                        onClick = {
-                            val next = (selectedCutIndex - 1).coerceAtLeast(0)
-                            selectedCutIndex = next
-                            jumpTo(next, viewHeightPx, viewportHeightPx)
-                        },
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable(enabled = cuts.isNotEmpty() && selectedCutIndex > 0) {
+                                val next = selectedCutIndex - 1
+                                selectedCutIndex = next
+                                jumpTo(next, viewHeightPx, viewportHeightPx)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            AppIcons.ChevronUp,
+                            contentDescription = "上一条切线",
+                            modifier = Modifier.size(22.dp),
+                            tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        )
+                    }
                     Text(
                         if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条",
                         fontSize = 12.sp,
                         color = MiuixTheme.colorScheme.onSurfaceSecondary,
                     )
-                    TextButton(
-                        text = "下一条切线",
-                        onClick = {
-                            val next = (selectedCutIndex + 1).coerceAtMost((cuts.size - 1).coerceAtLeast(0))
-                            selectedCutIndex = next
-                            jumpTo(next, viewHeightPx, viewportHeightPx)
-                        },
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable(enabled = cuts.isNotEmpty() && selectedCutIndex < cuts.lastIndex) {
+                                val next = selectedCutIndex + 1
+                                selectedCutIndex = next
+                                jumpTo(next, viewHeightPx, viewportHeightPx)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            AppIcons.ChevronDown,
+                            contentDescription = "下一条切线",
+                            modifier = Modifier.size(22.dp),
+                            tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        )
+                    }
                 }
 
                 Box(

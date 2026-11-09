@@ -9,12 +9,20 @@
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.5** | `app/build.gradle.kts` |
-| versionCode | **7** | 同上 |
+| versionName | **0.2.6** | `app/build.gradle.kts` |
+| versionCode | **8** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 
 > 当前版本号用于本轮补丁发布；是否已正式交付以 GitHub Releases 和成功的 publish job 为准。下文 §2.1–2.9 是历史批次记录，不是 2026-11-09 的当前版本。
+
+---
+
+## 2026-11-09：v0.2.6 实机视觉补丁
+
+- 首页选图按钮文本按按钮中心定位；切线页导航改为 48dp 图标触控区；结果页网格占比由 41% 改为 58%。
+- 添加源码布局回归测试；UI 的实机复查仍未执行，不以静态测试代替真实视觉验收。
+- 三张新截图不能证明裁切完整性与保序，请以输入源图和实际输出为准。
 
 ---
 
