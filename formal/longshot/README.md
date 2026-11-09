@@ -13,7 +13,7 @@ The script downloads upstream TLC 1.8.0 (official GitHub release; release SHA-1 
 | Cut editing | 6 abstract rows, 2 re-encodes | Exclusive seam has no gap/overlap | .cursor/skills/verify-longshot-cuts/SKILL.md |
 | Export selection | 3 slices, 2 exports | Nonempty immutable export snapshot | .cursor/skills/verify-longshot-export/SKILL.md |
 
-The Mermaid diagrams in charts/ are hand-reviewed, user-language **projections**, not outputs of the upstream pstack statechart program. To get auto-marked counterexample statecharts, run pstack /statechart against specs/*.tla and the matching configs in an environment where pstack has been installed. Do not label the diagrams as automatically TLC-extracted.
+The Mermaid diagrams in charts/ are concise, hand-reviewed **user-flow projections**, not the automatically generated graphs. In CI, the actual upstream pstack statechart program is executed against all four TLA+ specs, with reader-facing view modules from views/; it saves chart.mmd, report.md and checker logs as the 30-day GitHub Actions artifact named formal-statecharts. To reproduce the checked charts, rerun .github/workflows/formal-verification.yml. Do not label the hand-edited charts as automatically TLC-extracted.
 
 **Last mapped product-code snapshot:** 06347f41eabe727b3931a407e4ec88f3e68eaf31. Advance each Skill's sync commit only after examining any changed Kotlin statements and rerunning the model and relevant JVM/Android tests. Model mutations prove that the *model* would detect broken behavior, not that a particular Kotlin mutant was compiled and tested.
 
