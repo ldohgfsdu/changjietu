@@ -1,0 +1,30 @@
+stateDiagram-v2
+    [*] --> Result
+    state "切片结果" as Result
+    state "已选择至少一张" as Selected
+    state "不可导出：选择为空" as Empty
+    state "生成分享 Intent" as Sharing
+    state "写入相册" as Saving
+    state "打包 ZIP" as Zipping
+    state "等待旧版 Android 存储授权" as Permission
+    state "外部接收 App" as Recipient
+    state "完成" as Done
+    state "失败／可重试" as Failed
+    Result --> Selected: 勾选切片
+    Result --> Empty: 取消全选
+    Empty --> Selected: 重新选择
+    Selected --> Sharing: 分享所选
+    Selected --> Saving: 保存相册 [有权限]
+    Selected --> Zipping: 打包 ZIP [有权限]
+    Selected --> Permission: 系统需要授权
+    Permission --> Saving: 授权并保存
+    Permission --> Zipping: 授权并打包
+    Permission --> Failed: 拒绝授权
+    Sharing --> Recipient: 发送有序 URI 列表
+    Recipient --> Done: 接收 App 自行处理顺序
+    Saving --> Done: 保存成功
+    Zipping --> Done: ZIP 已输出
+    Saving --> Failed: 文件不可读等异常
+    Zipping --> Failed: 压缩或磁盘错误
+    Failed --> Selected: 重新操作
+    Done --> Result: 返回切片列表
