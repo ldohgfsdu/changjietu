@@ -16,10 +16,10 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.4`（versionCode 6）
+- 版本：`0.2.5`（versionCode 7；发布状态以 GitHub Releases 为准）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
-- 验证：`testDebugUnitTest` 108 用例 / 0 失败；`assembleRelease`、`lintDebug` 通过；**无 adb 设备，运行态未实测**
+- 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
 
 ## 功能
 
@@ -92,7 +92,8 @@ changjietu.release.keyPassword=...
 ## 安装与交付
 
 ```bash
-adb install -r https://github.com/ldohgfsdu/changjietu/releases/latest
+# 先在 Releases 页面下载对应版本的 APK 到当前目录
+adb install -r changjietu-0.2.5-release.apk
 ```
 
 - 正式分发：GitHub Releases（APK 和同名 `.sha256` 两个资产，不将 APK 写入源码仓库）
@@ -140,6 +141,13 @@ app/src/main/java/com/changjietu/app/
 2. `docs/CURRENT_STATUS.md`
 3. `docs/DECISIONS.md`
 4. `GOAL.md`
+
+## v0.2.5 正确性修复
+
+- 高清精细编辑复制独立位图快照后再释放区域解码句柄，防止持有 recycled Bitmap；切换区域时清除旧图，并拒绝过期任务回写。
+- 切线像素边界不变时跳过整批 JPEG 重编码。
+- 总览图分块解码失败时停止并报告预览不可用，不再把残缺白图当成完整结果。
+- 本轮只保证代码和 CI 验收；真实 Android 图像渲染、拖拽手感、相册和跨应用分享仍需设备验收。
 
 ## 裁切与分享顺序（v0.2.4）
 
