@@ -1,0 +1,22 @@
+stateDiagram-v2
+    [*] --> Home
+    state "首页：选择图片" as Home
+    state "读取与分析原图" as Analyzing
+    state "裁切设置与预览" as Settings
+    state "调整切线" as CutEditor
+    state "生成切片" as Processing
+    state "切片结果（可选择）" as Results
+    state "源文件不可访问" as FileError
+    state "切片失败（可重试）" as ProcessError
+    Home --> Analyzing: 相册选择或外部分享
+    Analyzing --> Settings: 当前图片分析成功
+    Analyzing --> FileError: 无权限或无法读取
+    FileError --> Home: 重新选择
+    Analyzing --> Analyzing: 新图片取代旧加载
+    Settings --> CutEditor: 点击预览/调整切线
+    CutEditor --> Settings: 完成手动调整
+    Settings --> Processing: 生成切片
+    Processing --> Results: 成功并发出一次性导航
+    Processing --> ProcessError: 处理失败
+    ProcessError --> Processing: 重试
+    Results --> Settings: 返回调整设置

@@ -1,0 +1,17 @@
+stateDiagram-v2
+    [*] --> Preview
+    state "预览已生成切线" as Preview
+    state "移动切线（仅改坐标）" as Dragging
+    state "边界未变" as Noop
+    state "重新生成 JPEG" as Encoding
+    state "新切片列表" as Updated
+    state "重切片失败" as Retry
+    Preview --> Dragging: 手柄拖动
+    Dragging --> Noop: 松手 [像素边界不变]
+    Dragging --> Encoding: 松手 [像素边界变化]
+    Noop --> Preview: 无需重编码
+    Encoding --> Updated: 解码、切片、输出成功
+    Encoding --> Retry: I/O 或解码失败
+    Retry --> Encoding: 重试提交
+    Updated --> Dragging: 再次编辑
+    Updated --> [*]: 返回结果列表
