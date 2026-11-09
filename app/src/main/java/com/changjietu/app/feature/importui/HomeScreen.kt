@@ -130,19 +130,19 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .height(52.dp),
                     ) {
-                        Icon(
-                            AppIcons.Image,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = Color.White,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "选择图片",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        // 文字必须相对按钮边界居中，不能把图标+间距作为同一整体居中。
+                        // 首页主操作使用单独的文字，不为装饰图标预留不可见偏移。
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "选择图片",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                     when (val state = homeState) {
                         is HomeUiState.Loading -> {
