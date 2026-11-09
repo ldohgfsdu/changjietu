@@ -17,6 +17,15 @@ data class SlicePixelRect(
 }
 
 object SliceGeometry {
+    /**
+     * 不变的像素 ranges 无需重新解码和写盘。
+     * 与展示的实际 [startY, endY) 比较，而非只比较切线数量。
+     */
+    fun matchesRenderedRanges(ranges: List<IntRange>, slices: List<SliceOutput>): Boolean =
+        ranges.size == slices.size && ranges.zip(slices).all { (range, slice) ->
+            range.first == slice.startY && range.last + 1 == slice.endY
+        }
+
     fun regionFor(
         sourceWidth: Int,
         sourceHeight: Int,

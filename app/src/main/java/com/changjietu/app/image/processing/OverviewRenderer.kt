@@ -33,42 +33,49 @@ object OverviewRenderer {
     ): ImageBitmap {
         val spec = OverviewGeometry.compute(contentWidth, contentHeight)
         val output = Bitmap.createBitmap(spec.outWidth, spec.outHeight, Bitmap.Config.RGB_565)
-        val canvas = Canvas(output)
-        canvas.drawColor(Color.WHITE)
-        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-        val stripSourceHeight = STRIP_OUTPUT_HEIGHT * spec.sampleSize
+        try {
+            val canvas = Canvas(output)
+            canvas.drawColor(Color.WHITE)
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+            val stripSourceHeight = STRIP_OUTPUT_HEIGHT * spec.sampleSize
 
-        var y = 0
-        while (y < contentHeight) {
-            val y2 = (y + stripSourceHeight).coerceAtMost(contentHeight)
-            val handle = source.decodeRegion(
-                contentLeft,
-                contentTop + y,
-                contentLeft + contentWidth,
-                contentTop + y2,
-                sampleSize = spec.sampleSize,
-            ) ?: break
-            handle.use { h ->
-                val strip = h.bitmapOrNull ?: return@use
-                val dstTop = y / spec.sampleSize
-                val dstBottom = ((y2 + spec.sampleSize - 1) / spec.sampleSize)
-                    .coerceAtMost(spec.outHeight)
-                if (dstBottom > dstTop) {
-                    canvas.drawBitmap(
-                        strip,
-                        null,
-                        RectF(
-                            0f,
-                            dstTop.toFloat(),
-                            spec.outWidth.toFloat(),
-                            dstBottom.toFloat(),
-                        ),
-                        paint,
-                    )
+            var y = 0
+            while (y < contentHeight) {
+                val y2 = (y + stripSourceHeight).coerceAtMost(contentHeight)
+                val handle = source.decodeRegion(
+                    contentLeft,
+                    contentTop + y,
+                    contentLeft + contentWidth,
+                    contentTop + y2,
+                    sampleSize = spec.sampleSize,
+                ) ?: error("Overview decode failed at source rows $y..$y2")
+                handle.use { h ->
+                    val strip = h.bitmapOrNull
+                        ?: error("Overview decode returned no bitmap at source rows $y..$y2")
+                    val dstTop = y / spec.sampleSize
+                    val dstBottom = ((y2 + spec.sampleSize - 1) / spec.sampleSize)
+                        .coerceAtMost(spec.outHeight)
+                    if (dstBottom > dstTop) {
+                        canvas.drawBitmap(
+                            strip,
+                            null,
+                            RectF(
+                                0f,
+                                dstTop.toFloat(),
+                                spec.outWidth.toFloat(),
+                                dstBottom.toFloat(),
+                            ),
+                            paint,
+                        )
+                    }
                 }
+                y = y2
             }
-            y = y2
+            return output.asImageBitmap()
+        } catch (failure: Throwable) {
+            // 不把已经解码失败的白色半张总览展示为完整源图。
+            if (!output.isRecycled) output.recycle()
+            throw failure
         }
-        return output.asImageBitmap()
     }
 }

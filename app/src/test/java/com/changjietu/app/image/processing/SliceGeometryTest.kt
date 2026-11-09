@@ -3,6 +3,8 @@ package com.changjietu.app.image.processing
 import com.changjietu.app.image.analysis.Margins
 import com.changjietu.app.image.analysis.SplitPointDetector
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -50,5 +52,38 @@ class SliceGeometryTest {
         assertThrows(IllegalArgumentException::class.java) {
             SliceGeometry.regionFor(100, 1000, Margins(0, 10, 0, 10), 0 until 990)
         }
+    }
+
+    private fun rendered(startY: Int, endY: Int, index: Int): SliceOutput = SliceOutput(
+        index = index,
+        total = 2,
+        startY = startY,
+        endY = endY,
+        width = 1080,
+        height = endY - startY,
+        file = java.io.File("cut_$index.jpg"),
+        label = "${index + 1}/2",
+    )
+
+    @Test fun unchangedCutRangesDoNotRequireReprocess() {
+        val slices = listOf(rendered(0, 1000, 0), rendered(1000, 2000, 1))
+        assertTrue(
+            SliceGeometry.matchesRenderedRanges(
+                listOf(0 until 1000, 1000 until 2000), slices,
+            ),
+        )
+    }
+
+    @Test fun changedOrDeletedCutRangesRequireReprocess() {
+        val slices = listOf(rendered(0, 1000, 0), rendered(1000, 2000, 1))
+        assertFalse(SliceGeometry.matchesRenderedRanges(
+            listOf(0 until 999, 999 until 2000), slices,
+        ))
+        assertFalse(SliceGeometry.matchesRenderedRanges(
+            listOf(0 until 2000), slices,
+        ))
+        assertFalse(SliceGeometry.matchesRenderedRanges(
+            listOf(0 until 1000, 1001 until 2000), slices,
+        ))
     }
 }

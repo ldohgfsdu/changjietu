@@ -119,7 +119,10 @@ fun OverviewEditor(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("长图总览生成中…", color = MiuixTheme.colorScheme.onBackgroundVariant)
+                Text(
+                    if (editor.isProcessing) "长图总览生成中…" else "长图总览不可用，请查看下方切片",
+                    color = MiuixTheme.colorScheme.onBackgroundVariant,
+                )
             }
             return@Column
         }
