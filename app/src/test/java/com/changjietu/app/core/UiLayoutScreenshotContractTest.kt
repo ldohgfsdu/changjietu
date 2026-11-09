@@ -25,13 +25,18 @@ class UiLayoutScreenshotContractTest {
         assertFalse(button.contains("AppIcons.Image,"))
     }
 
-    @Test fun cutNavigatorUsesCompact48dpTapTargets() {
+    @Test fun cutNavigatorProvidesVisibleTextAndDirectLocate() {
         val editor = read("feature/editor/PreviewCutEditor.kt")
-        val nav = editor.substringAfter("// 实机窄屏的长文字按钮过大").substringBefore("Box(\n                    modifier = Modifier")
-        assertTrue(nav.contains("height(52.dp)"))
-        assertTrue(nav.contains(".size(48.dp)"))
-        assertTrue(nav.contains("AppIcons.ChevronUp"))
-        assertTrue(nav.contains("AppIcons.ChevronDown"))
+        val nav = editor.substringAfter("// 实机 v0.2.6 证明自定义箭头图标不可见。")
+            .substringBefore("\n\n                Box(\n                    modifier = Modifier")
+        assertTrue(nav.contains(".height(52.dp)"))
+        assertTrue(nav.contains(".width(78.dp)"))
+        assertTrue(nav.contains(".height(48.dp)"))
+        assertTrue(nav.contains("Text(\n                            \"上一条\""))
+        assertTrue(nav.contains("Text(\n                            \"下一条\""))
+        assertTrue(nav.contains("onClickLabel = \"定位当前切线\""))
+        assertTrue(nav.contains("jumpTo(selectedCutIndex, viewHeightPx, viewportHeightPx)"))
+        assertFalse(nav.contains("AppIcons.Chevron"))
         assertFalse(nav.contains("TextButton("))
     }
 
