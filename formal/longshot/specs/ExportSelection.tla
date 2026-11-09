@@ -29,6 +29,7 @@ StartExport ==
     /\ delivered' = {}
     /\ exportCount' = exportCount + 1
     /\ phase' = "exporting"
+    /\ UNCHANGED selected
 
 FinishExport ==
     /\ phase = "exporting"
