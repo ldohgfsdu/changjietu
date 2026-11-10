@@ -103,7 +103,7 @@ fun PreviewCutEditor(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            "拖动圆形手柄调整切线 · 长按图片新增切点",
+            "拖动手柄调整切线，长按图片新增切点",
             color = MiuixTheme.colorScheme.onSurfaceSecondary,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             fontSize = 12.sp,
@@ -184,8 +184,8 @@ fun PreviewCutEditor(
                     ) {
                         Text(
                             if (cuts.isEmpty()) "无切线" else
-                                "第 ${selectedCutIndex + 1}/${cuts.size} 条 · " +
-                                    (if (cuts[selectedCutIndex] in uncertainCutEnds) "需检查" else "定位"),
+                                "第 ${selectedCutIndex + 1}/${cuts.size} 条 " +
+                                    (if (cuts[selectedCutIndex] in uncertainCutEnds) "（需检查）" else "（定位）"),
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         )
