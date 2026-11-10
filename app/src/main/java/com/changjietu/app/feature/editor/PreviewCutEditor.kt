@@ -56,6 +56,7 @@ import kotlin.math.roundToInt
 private const val MAX_VIEW_HEIGHT_DP = 6000f
 
 private val HANDLE_SIZE = 38.dp
+private val HANDLE_TOUCH_SIZE = 48.dp // 手指命中区，保留原 38dp 视觉圆点
 private val CutLineColor = Color(0xFF3482FF)
 private val CropLineColor = Color(0xFFE6A23C)
 
@@ -106,7 +107,7 @@ fun PreviewCutEditor(
             val viewHeightDp = (maxWidth.value * aspect).coerceAtLeast(1f).coerceAtMost(MAX_VIEW_HEIGHT_DP)
             val viewHeightPx = with(density) { viewHeightDp.dp.toPx() }
             val viewportHeightPx = with(density) { maxHeight.toPx() }
-            val handleSizePx = with(density) { HANDLE_SIZE.toPx() }
+            val handleSizePx = with(density) { HANDLE_TOUCH_SIZE.toPx() }
 
             Column(Modifier.fillMaxSize()) {
                 // 实机 v0.2.6 证明自定义箭头图标不可见。
@@ -260,9 +261,7 @@ fun PreviewCutEditor(
                                         .coerceIn(0f, (viewHeightPx - handleSizePx).coerceAtLeast(0f))
                                     IntOffset(0, top.roundToInt())
                                 }
-                                .size(HANDLE_SIZE)
-                                .border(if (selected) 3.dp else 2.dp, Color.White, CircleShape)
-                                .background(CutLineColor, CircleShape)
+                                .size(HANDLE_TOUCH_SIZE)
                                 .pointerInput(index, contentTop, sourceHeight, viewHeightPx) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(
@@ -283,12 +282,20 @@ fun PreviewCutEditor(
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                MiuixIcons.ArrowUpDown,
+                            Box(
+                                Modifier
+                                    .size(HANDLE_SIZE)
+                                    .border(if (selected) 3.dp else 2.dp, Color.White, CircleShape)
+                                    .background(CutLineColor, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    MiuixIcons.ArrowUpDown,
                                 contentDescription = "拖动调整切点",
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp),
-                            )
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
                     }
                 }
