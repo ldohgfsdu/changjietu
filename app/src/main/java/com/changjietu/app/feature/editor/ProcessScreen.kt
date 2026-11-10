@@ -56,7 +56,9 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.changjietu.app.core.DisplaySpec
 import com.changjietu.app.core.ProcessSettings
+import com.changjietu.app.core.SafeCropMargins
 import com.changjietu.app.core.SourceInfo
+import com.changjietu.app.image.analysis.SplitPointDetector
 import com.changjietu.app.image.analysis.QualityLevel
 import com.changjietu.app.image.analysis.displayName
 import com.changjietu.app.ui.theme.ChangjietuTheme
@@ -93,6 +95,25 @@ fun ProcessScreen(
     val displaySpec = viewModel.displaySpec
     val sliceCount = previewPlan?.sliceCount ?: src?.estimatedSlices ?: 0
     val processing = editor?.isProcessing == true
+    // A cut in a table or text block cannot be promised safe without an
+    // identified gap. Surface the uncertainty before the user exports slices.
+    val uncertainAutoCuts = remember(previewPlan, src, manualCuts) {
+        val p = previewPlan
+        if (src == null || p == null || manualCuts != null) {
+            emptyList()
+        } else {
+            val first = p.contentTop
+            val last = first + p.contentHeight
+            if (first < 0 || last > src.rowEnergy.size || last <= first) {
+                emptyList()
+            } else {
+                SplitPointDetector.uncertainCuts(
+                    p.cutEnds.dropLast(1),
+                    src.rowEnergy.copyOfRange(first, last),
+                )
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MiuixTheme.colorScheme.background,
@@ -192,6 +213,20 @@ fun ProcessScreen(
                         color = MiuixTheme.colorScheme.onSurfaceSecondary,
                     )
                 }
+                if (uncertainAutoCuts.isNotEmpty()) {
+                    Surface(
+                        color = MiuixTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text(
+                            "检测到 ${uncertainAutoCuts.size} 条切线缺少可靠空白带，" +
+                                "可能穿过文字、表格或图片。生成前请点开预览检查并手动调整。",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                            modifier = Modifier.padding(10.dp),
+                        )
+                    }
+                }
                 Text(
                     "预计 $sliceCount 张切片 · 保持原始尺寸",
                     fontSize = 14.sp,
@@ -224,8 +259,8 @@ fun ProcessScreen(
                 },
             )
             SuperSwitch(
-                title = "自动裁除空白",
-                summary = marginSummary(src, settings.cropMargins),
+                title = "自动裁除上下空白",
+                summary = marginSummary(src, settings.cropMargins, manualMargins),
                 checked = settings.cropMargins,
                 onCheckedChange = { checked ->
                     viewModel.updateSettings { it.copy(cropMargins = checked) }
@@ -523,7 +558,7 @@ private fun MoreOptions(
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     val caption = MiuixTheme.colorScheme.onSurfaceSecondary
-    val eff = manualMargins ?: src.margins
+    val eff = manualMargins ?: SafeCropMargins.automatic(src.margins)
     Column {
         Row(
             Modifier
@@ -538,7 +573,7 @@ private fun MoreOptions(
         }
         if (open) {
             Text(
-                "黄色框 = 输出边界（裁边）；手动改后开关不再覆盖，可恢复检测值。",
+                "黄色框 = 实际输出边界；自动仅裁上下空白，左右裁边必须手动指定。",
                 fontSize = 13.sp,
                 color = caption,
                 modifier = Modifier.padding(vertical = 6.dp),
@@ -603,7 +638,7 @@ private fun MoreOptions(
                 softWrap = false,
             )
             if (manualMargins != null) {
-                TextButton(text = "恢复检测值", onClick = onClearManualMargins)
+                TextButton(text = "恢复安全自动值", onClick = onClearManualMargins)
             }
             SuperSwitch(
                 title = "页码角标",
@@ -776,9 +811,14 @@ private fun CutPreviewDialog(
     }
 }
 
-private fun marginSummary(src: SourceInfo, cropEnabled: Boolean): String {
-    val m = src.margins
-    if (m.isEmpty()) return "未发现明显空白边"
-    val found = "左 ${m.left} · 右 ${m.right} · 上 ${m.top} · 下 ${m.bottom} px"
-    return if (cropEnabled) "将裁掉 $found" else "已识别 $found，当前不裁"
+private fun marginSummary(
+    src: SourceInfo,
+    cropEnabled: Boolean,
+    manualMargins: com.changjietu.app.image.analysis.Margins?,
+): String {
+    if (!cropEnabled) return "当前保留原图全部像素；开启后默认仅自动裁上下空白"
+    val m = SafeCropMargins.effective(cropEnabled, src.margins, manualMargins)
+    if (m.isEmpty()) return "当前没有裁边；左右边缘保留"
+    val detail = "左 ${m.left} · 右 ${m.right} · 上 ${m.top} · 下 ${m.bottom} px"
+    return "实际将裁掉 $detail（左右只在手动设置后生效）"
 }
