@@ -47,4 +47,17 @@ class UiLayoutScreenshotContractTest {
         assertTrue(result.contains("Text(\"保存相册\""))
         assertTrue(result.contains("Text(\"打包 ZIP\""))
     }
+    @Test fun cutDragHandlesUseAtLeast44DpTouchAreaWithoutInflatingVisuals() {
+        val overview = read("feature/editor/OverviewEditor.kt")
+        val detailed = read("feature/editor/PreviewCutEditor.kt")
+        for (source in listOf(overview, detailed)) {
+            assertTrue(source.contains("private val HANDLE_SIZE = 38.dp"))
+            assertTrue(source.contains("private val HANDLE_TOUCH_SIZE = 48.dp"))
+            assertTrue(source.contains("HANDLE_TOUCH_SIZE.toPx()"))
+            assertTrue(source.contains(".size(HANDLE_TOUCH_SIZE)"))
+            assertTrue(source.contains(".size(HANDLE_SIZE)"))
+        }
+        // 不允许手柄单击触发切片重算；此处是源码契约，不代替设备手势实测。
+        assertTrue(overview.contains("if (accumulated != 0f) onEnd()"))
+    }
 }
