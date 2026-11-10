@@ -49,6 +49,16 @@ def normalize(payload):
             "author": author.strip(), "version": version.strip()}
 
 
+def require_target_feed(item, target_feed_id):
+    """Fail closed until the owner supplies the single approved feedback post ID."""
+    if not isinstance(target_feed_id, str) or not re.fullmatch(r"[0-9]{1,20}", target_feed_id):
+        raise ValueError("Set COOLAPK_TARGET_FEED_ID to the single authorized feedback post ID")
+    expected = f"https://www.coolapk.com/feed/{target_feed_id}"
+    if item["source_url"] != expected:
+        raise ValueError("Feedback is not from the configured Coolapk feedback post")
+    return item
+
+
 def marker(item):
     digest = hashlib.sha256(("coolapk:" + item["external_id"]).encode("utf-8")).hexdigest()
     return f"<!-- coolapk-feedback:{digest} -->"
@@ -143,6 +153,7 @@ def main(argv=None):
         if args.command == "intake":
             payload = event_feedback(args.event_name, json.loads(args.event.read_text(encoding="utf-8")))
             item = normalize(payload)
+            require_target_feed(item, os.environ.get("COOLAPK_TARGET_FEED_ID", ""))
             if args.dry_run:
                 print(json.dumps({"title": issue_title(item), "body": issue_body(item)}, ensure_ascii=False))
             else:
