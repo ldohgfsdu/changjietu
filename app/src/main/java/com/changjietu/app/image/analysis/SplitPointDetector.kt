@@ -234,19 +234,23 @@ object SplitPointDetector {
                 .coerceAtMost(target - 1)
             val minCut = (cursor + minAdvance).coerceAtMost(maxCut - 1).coerceAtLeast(cursor + 1)
             val ideal = maxCut
-            val windowStart = (ideal - effectiveWindow).coerceAtLeast(minCut)
-            val windowEnd = maxCut
-
+            // Prefer a real content gap ANYWHERE in the allowed 55–100% slice
+            // interval. Previously searching only the last ~360 px could force
+            // a seam through text or a table despite an earlier safe gap.
+            val safeStart = minCut
+            val safeEnd = maxCut
             val gapCut = chooseGapCut(
                 gaps = gaps,
-                windowStart = windowStart,
-                windowEnd = windowEnd,
+                windowStart = safeStart,
+                windowEnd = safeEnd,
                 ideal = ideal,
                 rangeStart = cursor,
                 target = target,
             )
-            val cut = (gapCut ?: findLowestEnergyY(smoothed, windowStart, windowEnd, ideal))
-                .coerceIn(windowStart, windowEnd)
+            // Without an identified gap, still produce a lossless full-coverage
+            // geometric split; the editor will explicitly warn about uncertainty.
+            val cut = (gapCut ?: findLowestEnergyY(smoothed, safeStart, safeEnd, ideal))
+                .coerceIn(safeStart, safeEnd)
 
             cuts.add(cut)
             val next = (cut - ov).coerceAtLeast(cursor + 1)
@@ -289,6 +293,34 @@ object SplitPointDetector {
             energy = smoothed,
             searchWindow = effectiveWindow,
         )
+    }
+
+    /**
+     * Identify automatic seams that do not land inside a confirmed low-energy
+     * blank band. This is a *heuristic*: even a low-energy band is not proof
+     * that all visual contents (e.g. table borders) are safe to cut.
+     *
+     * The returned cut ends are relative to the same content Y axis as energy.
+     * The final image end is not a seam and should not be included in cutEnds.
+     */
+    fun uncertainCuts(
+        cutEnds: List<Int>,
+        rowEnergy: FloatArray,
+        minGapHeight: Int = 6,
+    ): List<Int> {
+        if (cutEnds.isEmpty()) return emptyList()
+        if (rowEnergy.isEmpty()) return cutEnds
+        val smoothed = smooth(rowEnergy, rowEnergy.size, radius = 2)
+        val gaps = findGaps(
+            smoothed,
+            rowEnergy.size,
+            contentThreshold(smoothed, rowEnergy.size),
+            minGapHeight,
+        )
+        return cutEnds.filter { cut ->
+            cut !in 1 until rowEnergy.size ||
+                gaps.none { gap -> cut >= gap.first + 2 && cut <= gap.last - 1 }
+        }
     }
 
     /** 在窗口内选一个位于空白带中的切点；没有合格空白带则返回 null。 */
