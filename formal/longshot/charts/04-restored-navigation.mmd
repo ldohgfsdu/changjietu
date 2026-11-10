@@ -1,0 +1,18 @@
+%% Human-authored process-death recovery projection (not a TLC-extracted chart)
+stateDiagram-v2
+    [*] --> RestoredRoute
+    state "Android restored prior route" as RestoredRoute
+    state "New image is loading" as Loading
+    state "Home: choose or reopen image" as Home
+    state "Process: source available" as Process
+    state "Preview: rendered slices available" as Preview
+
+    RestoredRoute --> Preview: route=preview and slices available
+    RestoredRoute --> Process: route=process and source available
+    RestoredRoute --> Process: route=preview and source available but no slices
+    RestoredRoute --> Loading: import/share loading
+    RestoredRoute --> Home: neither source nor slices nor loading
+    Loading --> Process: source analysis success
+    Loading --> Home: source opening fails
+    Preview --> Process: user presses back
+    Process --> Home: user presses back
