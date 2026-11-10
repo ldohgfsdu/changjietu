@@ -18,6 +18,8 @@ data class ProcessSettings(
     // Fail-safe default: preserve all source pixels until the user explicitly opts into cropping.
     // Column-averaged margin detection can miss sparse text at the edge of a long screenshot.
     val cropMargins: Boolean = false,
+    /** Detect local text-line boxes before automatic splitting. No recognized text stored. */
+    val avoidTextLines: Boolean = true,
     val removeStickyHeader: Boolean = false, // phase-2, always false in MVP
     val jpegQuality: Int = 95,
     val drawBadge: Boolean = true,
@@ -34,6 +36,8 @@ data class SourceInfo(
     val columnEnergy: FloatArray = FloatArray(0),
     /** 源图行能量（源坐标，仅 source-invariant，不随设置变化）。 */
     val rowEnergy: FloatArray = FloatArray(0),
+    /** OCR-protected image rows, using original full-image Y coordinates. */
+    val protectedSourceRows: List<IntRange> = emptyList(),
 )
 
 data class EditorState(

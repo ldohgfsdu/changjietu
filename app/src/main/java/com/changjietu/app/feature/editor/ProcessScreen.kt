@@ -58,6 +58,7 @@ import com.changjietu.app.core.DisplaySpec
 import com.changjietu.app.core.ProcessSettings
 import com.changjietu.app.core.SafeCropMargins
 import com.changjietu.app.core.SourceInfo
+import com.changjietu.app.image.analysis.ContentProtectedRows
 import com.changjietu.app.image.analysis.SplitPointDetector
 import com.changjietu.app.image.analysis.QualityLevel
 import com.changjietu.app.image.analysis.displayName
@@ -85,6 +86,7 @@ fun ProcessScreen(
     val source by viewModel.source.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val editor by viewModel.editor.collectAsStateWithLifecycle()
+    val textScan by viewModel.textScan.collectAsStateWithLifecycle()
     val homeState by viewModel.homeState.collectAsStateWithLifecycle()
     val previewBitmap by viewModel.previewBitmap.collectAsStateWithLifecycle()
     val previewPlan by viewModel.previewPlan.collectAsStateWithLifecycle()
@@ -97,7 +99,7 @@ fun ProcessScreen(
     val processing = editor?.isProcessing == true
     // A cut in a table or text block cannot be promised safe without an
     // identified gap. Surface the uncertainty before the user exports slices.
-    val uncertainCuts = remember(previewPlan, src) {
+    val uncertainCuts = remember(previewPlan, src, settings.avoidTextLines) {
         val p = previewPlan
         if (src == null || p == null) {
             emptyList()
@@ -110,6 +112,9 @@ fun ProcessScreen(
                 SplitPointDetector.uncertainCuts(
                     p.cutEnds.dropLast(1),
                     src.rowEnergy.copyOfRange(first, last),
+                    protectedRows = if (settings.avoidTextLines) ContentProtectedRows.inContent(
+                        src.protectedSourceRows, first, p.contentHeight,
+                    ) else emptyList(),
                 )
             }
         }
@@ -134,6 +139,7 @@ fun ProcessScreen(
                 ProcessBottomBar(
                     sliceCount = sliceCount,
                     processing = processing,
+                    recognizing = textScan.phase == TextScanPhase.RUNNING,
                     regenerate = !editor?.slices.isNullOrEmpty(),
                     onClick = { viewModel.startProcess() },
                 )
@@ -189,6 +195,43 @@ fun ProcessScreen(
             )
             QualitySummary(src)
 
+            // The model is bundled, but recognition may take time for long images.
+            // Keep the reason and the skip option visible: never silently block export.
+            when (textScan.phase) {
+                TextScanPhase.RUNNING -> {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            if (textScan.total == 0) "准备本机文字识别…" else
+                                "本机识别文字中 ${textScan.completed}/${textScan.total}",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(text = "跳过识别", onClick = viewModel::skipTextScan)
+                    }
+                }
+                TextScanPhase.READY -> Text(
+                    "已在本机标记 ${textScan.lines} 行文字，切线会优先避开文字区域",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                )
+                TextScanPhase.FAILED -> Text(
+                    "文字识别暂不可用，已回退传统切点；生成前请检查红色风险切线",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                )
+                TextScanPhase.SKIPPED -> Text(
+                    "本次未使用文字检测，请检查切线",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                )
+                TextScanPhase.IDLE -> Unit
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(
                     Modifier
@@ -226,6 +269,12 @@ fun ProcessScreen(
                             modifier = Modifier.padding(10.dp),
                         )
                     }
+                    if (bitmap != null) {
+                        TextButton(
+                            text = "检查第 1 条风险切线",
+                            onClick = { expanded = true },
+                        )
+                    }
                 }
                 Text(
                     "预计 $sliceCount 张切片 · 保持原始尺寸",
@@ -259,6 +308,14 @@ fun ProcessScreen(
                 },
             )
             SuperSwitch(
+                title = "本机文字识别避让",
+                summary = "仅检测文字位置，不上传截图；遇到图表仍建议检查",
+                checked = settings.avoidTextLines,
+                onCheckedChange = { enabled ->
+                    viewModel.updateSettings { it.copy(avoidTextLines = enabled) }
+                },
+            )
+            SuperSwitch(
                 title = "自动裁除上下空白",
                 summary = marginSummary(src, settings.cropMargins, manualMargins),
                 checked = settings.cropMargins,
@@ -267,7 +324,7 @@ fun ProcessScreen(
                 },
             )
 
-            val effectiveMargins = if (settings.cropMargins) (manualMargins ?: src.margins) else com.changjietu.app.image.analysis.Margins(0, 0, 0, 0)
+            val effectiveMargins = SafeCropMargins.effective(settings.cropMargins, src.margins, manualMargins)
             val manualCutsNow = manualCuts
             if (manualCutsNow != null && settings.cropMargins) {
                 val contentH = (src.height - effectiveMargins.top - effectiveMargins.bottom).coerceAtLeast(1)
@@ -278,10 +335,10 @@ fun ProcessScreen(
                     50,
                 )
                 if (conflict) {
-                    Surface(color = Color(0xFFFFF4E5), shape = RoundedCornerShape(12.dp)) {
+                    Surface(color = MiuixTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp)) {
                         Text(
                             "裁边范围与切线冲突：部分切点已落在裁边外并被忽略，请调整裁边或切线。",
-                            color = Color(0xFF8A4B00),
+                            color = MiuixTheme.colorScheme.onSurface,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(12.dp),
                         )
@@ -302,7 +359,7 @@ fun ProcessScreen(
                 Surface(color = Color(0xFFFFEDEA), shape = RoundedCornerShape(12.dp)) {
                     Text(
                         it,
-                        color = Color(0xFF8C1D18),
+                        color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(12.dp),
                     )
@@ -319,6 +376,8 @@ fun ProcessScreen(
                 showCrop = settings.cropMargins,
                 manualActive = manualActive,
                 uncertainCutEnds = uncertainCuts.toSet(),
+                initialCutIndex = previewPlan?.cutEnds?.dropLast(1)?.indexOfFirst { it in uncertainCuts }
+                    ?.takeIf { it >= 0 } ?: 0,
                 onCutPreview = viewModel::previewManualCut,
                 onAddCutPoint = viewModel::addManualCutPoint,
                 onClearManualCuts = viewModel::clearManualCuts,
@@ -332,10 +391,12 @@ fun ProcessScreen(
 private fun ProcessBottomBar(
     sliceCount: Int,
     processing: Boolean,
+    recognizing: Boolean,
     regenerate: Boolean,
     onClick: () -> Unit,
 ) {
     val label = when {
+        recognizing -> "正在识别文字…"
         processing -> "正在切片…"
         regenerate -> "重新生成 $sliceCount 张切片"
         sliceCount > 0 -> "生成 $sliceCount 张切片"
@@ -350,7 +411,7 @@ private fun ProcessBottomBar(
     ) {
         Button(
             onClick = onClick,
-            enabled = !processing,
+            enabled = !processing && !recognizing,
             colors = ButtonDefaults.buttonColorsPrimary(),
             modifier = Modifier
                 .fillMaxWidth()
@@ -402,7 +463,7 @@ private fun QualitySummary(src: SourceInfo) {
         QualityLevel.LOW, QualityLevel.UNRECOVERABLE -> {
             val danger = q.level == QualityLevel.UNRECOVERABLE
             Surface(
-                color = if (danger) Color(0xFFFFEDEA) else Color(0xFFFFF4E5),
+                color = MiuixTheme.colorScheme.surface,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -411,7 +472,7 @@ private fun QualitySummary(src: SourceInfo) {
                         q.level.displayName(),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (danger) Color(0xFF8C1D18) else Color(0xFF8A4B00),
+                        color = MiuixTheme.colorScheme.onSurface,
                     )
                     if (danger) {
                         Text(
@@ -769,6 +830,7 @@ private fun CutPreviewDialog(
     showCrop: Boolean,
     manualActive: Boolean,
     uncertainCutEnds: Set<Int>,
+    initialCutIndex: Int,
     onCutPreview: (Int, Int) -> Unit,
     onAddCutPoint: (Int) -> Unit,
     onClearManualCuts: () -> Unit,
@@ -801,6 +863,7 @@ private fun CutPreviewDialog(
                         showCrop = showCrop,
                         manualActive = manualActive,
                         uncertainCutEnds = uncertainCutEnds,
+                        initialCutIndex = initialCutIndex,
                         onPreviewCut = onCutPreview,
                         onAddCutPoint = onAddCutPoint,
                         onClearManualCuts = onClearManualCuts,
