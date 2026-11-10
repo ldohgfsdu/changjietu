@@ -1,0 +1,38 @@
+name: Coolapk feedback intake (no Coolapk write access)
+
+on:
+  repository_dispatch:
+    types: [coolapk-feedback]
+  workflow_dispatch:
+    inputs:
+      feedback_json:
+        description: 'Normalized Coolapk feedback JSON (for manual test/approval only)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: coolapk-feedback-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Intake unit tests (offline)
+        run: python -m unittest discover -s tools/feedback -p 'test_coolapk_bridge.py' -v
+      - name: Validate and create deduplicated Issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/feedback/coolapk_bridge.py intake \
+            --event "$GITHUB_EVENT_PATH" \
+            --event-name "$GITHUB_EVENT_NAME"
