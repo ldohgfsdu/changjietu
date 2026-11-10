@@ -14,6 +14,7 @@ if [[ ! -f "$JAR" ]]; then
 fi
 echo "0b57675323babad8ab3815b1db9f30e75dac1cdb  $JAR" | sha1sum --check --status
 
+python3 "$ROOT/tools/verify_state_machines.py"
 python3 "$ROOT/formal/longshot/source_contract.py" "$ROOT"
 python3 "$ROOT/formal/longshot/mutate.py" "$ROOT/formal/longshot/specs" "$OUT"
 

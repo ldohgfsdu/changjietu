@@ -1,0 +1,1065 @@
+{
+  "schema_version": 1,
+  "repository": "ldohgfsdu/changjietu",
+  "scope": "Tracked Android app source in app/src/main/java, two GitHub Actions workflows, and formal subsystem specs; defined as observable, mutable control states or resource lifecycles.",
+  "source_baseline": "b008d50c9ae6904a1a9bdf8efca0871bc19d9f32",
+  "model_caveat": "Only four machines have abstract bounded TLC models. The rest are source-derived hypotheses until scenario tests/runtime evidence confirm them. No claim of exhaustive runtime correctness.",
+  "discovery_rules": [
+    "MutableStateFlow/StateFlow and nonderived mutable fields",
+    "remember/rememberSaveable UI state",
+    "coroutine Jobs, generation tokens and callbacks",
+    "navigation and ActivityResult continuation",
+    "filesystem, MediaStore, zip and bitmap resource lifetimes",
+    "release gating workflow"
+  ],
+  "machines": [
+    {
+      "id": "NAV-01",
+      "subsystem": "navigation",
+      "title": "Activity back stack and one-shot destinations",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/MainActivity.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/MainActivity.kt": [
+          "rememberNavController()",
+          "LaunchedEffect(pendingShareId)",
+          "LaunchedEffect(pendingProcessResultId)"
+        ]
+      },
+      "states": [
+        "home",
+        "process",
+        "preview"
+      ],
+      "events": [
+        "onOpened",
+        "share pending",
+        "process result pending",
+        "back"
+      ],
+      "required_invariant": "No duplicate or stale navigation to preview; back returns to intended screen.",
+      "verification": "Manual navigation/rotation test",
+      "decision": "model_next"
+    },
+    {
+      "id": "ING-01",
+      "subsystem": "ingress",
+      "title": "External share consume-pending-ack",
+      "classification": "explicit+bounded_model",
+      "priority": "covered",
+      "files": [
+        "app/src/main/java/com/changjietu/app/MainActivity.kt",
+        "app/src/main/java/com/changjietu/app/core/ShareDelivery.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/core/ShareContract.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/core/ShareDelivery.kt": [
+          "pendingId",
+          "fun ack(id: Long)"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "fun consumeShare(uri: Uri, flags: Int)"
+        ],
+        "app/src/main/java/com/changjietu/app/core/ShareContract.kt": [
+          "fun resolve("
+        ]
+      },
+      "states": [
+        "notConsumed",
+        "pending",
+        "acknowledged",
+        "invalid"
+      ],
+      "events": [
+        "SEND",
+        "SEND_MULTIPLE",
+        "ack",
+        "new intent"
+      ],
+      "required_invariant": "Stale ack cannot discard newer share; malformed input must not crash.",
+      "verification": "TLC ShareIngress + ShareDeliveryTest",
+      "decision": "retain"
+    },
+    {
+      "id": "URI-01",
+      "subsystem": "ingress",
+      "title": "URI grants and stale recent permissions",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/core/UriPersistencePolicy.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/core/UriPersistencePolicy.kt": [
+          "fun shouldAttemptPersistRead(",
+          "UriAccessSource.EXTERNAL_SHARE"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private fun tryPersistRead(uri: Uri)",
+          "private fun checkReadable(uri: Uri)"
+        ]
+      },
+      "states": [
+        "temporaryGrant",
+        "persistAttempt",
+        "readable",
+        "stale"
+      ],
+      "events": [
+        "picker",
+        "share",
+        "recent",
+        "grant revocation"
+      ],
+      "required_invariant": "Never assume an expired temporary grant can be used as a persisted grant.",
+      "verification": "UriPersistencePolicyTest; on-device permission/reboot absent",
+      "decision": "model_next"
+    },
+    {
+      "id": "SRC-01",
+      "subsystem": "source-analysis",
+      "title": "Source generation and asynchronous analysis",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private var sourceGeneration = 0",
+          "fun openUri(uri: Uri",
+          "if (generation != sourceGeneration) return@launch"
+        ]
+      },
+      "states": [
+        "idle",
+        "loading",
+        "analysed",
+        "error",
+        "obsolete"
+      ],
+      "events": [
+        "new source",
+        "async complete",
+        "async fail",
+        "clear"
+      ],
+      "required_invariant": "An older source result cannot overwrite the current source.",
+      "verification": "TLC ShareIngress (abstract); C2EnergyCacheTest",
+      "decision": "retain"
+    },
+    {
+      "id": "SRC-02",
+      "subsystem": "source-analysis",
+      "title": "Background full-preview decode result",
+      "classification": "implicit",
+      "priority": "P2",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private val _previewBitmap",
+          "private var previewJob: Job? = null",
+          "private fun refreshPreviewBitmap("
+        ]
+      },
+      "states": [
+        "empty",
+        "loading",
+        "ready",
+        "failed",
+        "cancelled"
+      ],
+      "events": [
+        "analyse success",
+        "preview render complete",
+        "new source"
+      ],
+      "required_invariant": "Old preview must not display for a different source.",
+      "verification": "PreviewSourceSafetyTest; model missing lifecycle",
+      "decision": "model_next"
+    },
+    {
+      "id": "SRC-03",
+      "subsystem": "source-analysis",
+      "title": "High-resolution detail window decode",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private var detailJob: Job? = null",
+          "fun loadDetailWindow(top: Int, height: Int)"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt": [
+          "var showDetail by remember",
+          "viewModel.loadDetailWindow("
+        ]
+      },
+      "states": [
+        "closed",
+        "requesting",
+        "ready",
+        "failed",
+        "cancelled"
+      ],
+      "events": [
+        "open detail",
+        "next window",
+        "dismiss",
+        "source switch"
+      ],
+      "required_invariant": "Display only current-source/current-window data; ensure decoded handles release.",
+      "verification": "Static review; device test missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "CFG-01",
+      "subsystem": "configuration",
+      "title": "Source-based settings and derived split plan",
+      "classification": "implicit",
+      "priority": "P2",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "fun updateSettings(transform:",
+          "publishPreviewPlan(src, _settings.value)"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt": [
+          "HeightControl(",
+          "OverlapControl("
+        ]
+      },
+      "states": [
+        "default",
+        "adjusting",
+        "derivedPlan"
+      ],
+      "events": [
+        "target/overlap/crop change"
+      ],
+      "required_invariant": "Settings changes recalculate cuts without requiring a new full-image scan.",
+      "verification": "C2EnergyCacheTest; C2EvidenceGateTest",
+      "decision": "retain"
+    },
+    {
+      "id": "CFG-02",
+      "subsystem": "configuration",
+      "title": "Automatic vs manual crop margins",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/core/SourceCutGeometry.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private val _manualMargins",
+          "fun clearManualMargins()"
+        ],
+        "app/src/main/java/com/changjietu/app/core/SourceCutGeometry.kt": [
+          "fun sanitizeMargins("
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt": [
+          "onManualMarginsChange = viewModel::updateManualMargins"
+        ]
+      },
+      "states": [
+        "autoMargins",
+        "manualMargins",
+        "cropDisabled",
+        "conflict"
+      ],
+      "events": [
+        "change margin",
+        "reset",
+        "toggle crop"
+      ],
+      "required_invariant": "Changing crop does not silently erase source-coordinate manual cuts.",
+      "verification": "SourceCutGeometryTest; manual margin device test needed",
+      "decision": "model_next"
+    },
+    {
+      "id": "CUT-01",
+      "subsystem": "cut-editing",
+      "title": "Pre-generation automatic/manual cut locations",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewCutEditor.kt",
+        "app/src/main/java/com/changjietu/app/core/SourceCutGeometry.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private val _manualCuts",
+          "fun previewManualCut(",
+          "fun addManualCutPoint("
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewCutEditor.kt": [
+          "selectedCutIndex",
+          "jumpTo(index"
+        ],
+        "app/src/main/java/com/changjietu/app/core/SourceCutGeometry.kt": [
+          "fun visibleSource("
+        ]
+      },
+      "states": [
+        "auto",
+        "manual",
+        "hiddenByCrop",
+        "reset"
+      ],
+      "events": [
+        "drag",
+        "long press",
+        "change crop",
+        "clear"
+      ],
+      "required_invariant": "Cut coordinates remain source-relative and pass the minimum-gap guard.",
+      "verification": "SourceCutGeometryTest; pre-generation device check missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "CUT-02",
+      "subsystem": "cut-editing",
+      "title": "Cut-editor selection and scrolling",
+      "classification": "implicit",
+      "priority": "P2",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewCutEditor.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewCutEditor.kt": [
+          "var selectedCutIndex by remember",
+          "scrollState.animateScrollTo(target)"
+        ]
+      },
+      "states": [
+        "none",
+        "selected",
+        "scrolling"
+      ],
+      "events": [
+        "prev",
+        "next",
+        "locate",
+        "cut count change"
+      ],
+      "required_invariant": "Selected index stays within available cuts and navigation remains visible.",
+      "verification": "UiLayoutScreenshotContractTest only; real-device QA required",
+      "decision": "model_next"
+    },
+    {
+      "id": "CUT-03",
+      "subsystem": "cut-editing",
+      "title": "Rendered seam coordinates and encode-on-change",
+      "classification": "explicit+bounded_model",
+      "priority": "covered",
+      "files": [
+        "app/src/main/java/com/changjietu/app/image/processing/SliceGeometry.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/image/processing/ImageSplitter.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/image/processing/SliceGeometry.kt": [
+          "fun regionFor(",
+          "fun matchesRenderedRanges("
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "fun commitCuts()"
+        ],
+        "app/src/main/java/com/changjietu/app/image/processing/ImageSplitter.kt": [
+          "fun splitToFiles("
+        ]
+      },
+      "states": [
+        "ready",
+        "dragging",
+        "unchanged",
+        "encoding",
+        "rendered"
+      ],
+      "events": [
+        "drag",
+        "release",
+        "finish"
+      ],
+      "required_invariant": "For zero overlap, exclusive pixel ranges have no missing or duplicated row.",
+      "verification": "TLC SliceCuts + SliceGeometryTest + NoOverlapCutTest",
+      "decision": "retain"
+    },
+    {
+      "id": "CUT-04",
+      "subsystem": "cut-editing",
+      "title": "Inline overview drag/add mode",
+      "classification": "implicit",
+      "priority": "P2",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/OverviewEditor.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/OverviewEditor.kt": [
+          "var addMode by remember",
+          "onToggleAddMode = { addMode = !addMode }",
+          "onEnd = onCommit"
+        ]
+      },
+      "states": [
+        "normal",
+        "addMode",
+        "dragging",
+        "committing"
+      ],
+      "events": [
+        "tap mode",
+        "long press",
+        "drag",
+        "release"
+      ],
+      "required_invariant": "Preview moves do not encode until commit, and disabled editors do not write.",
+      "verification": "Manual touch tests missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "PROC-01",
+      "subsystem": "processing",
+      "title": "Admission gate for initial slice request",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "if (_editor.value?.isProcessing == true) return",
+          "_editor.value = EditorState(",
+          "viewModelScope.launch {"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt": [
+          "processing = editor?.isProcessing == true"
+        ]
+      },
+      "states": [
+        "ready",
+        "claimed",
+        "encoding",
+        "success",
+        "failure"
+      ],
+      "events": [
+        "tap generate",
+        "double tap",
+        "new source",
+        "IO finishes"
+      ],
+      "required_invariant": "Claim busy state synchronously before coroutine launch; no duplicate encode start for same active source.",
+      "verification": "Source-order contract + Android CI; no real double-tap instrumentation",
+      "decision": "hardened_this_pr"
+    },
+    {
+      "id": "PROC-02",
+      "subsystem": "processing",
+      "title": "Processing completion event and ack",
+      "classification": "explicit+bounded_model",
+      "priority": "covered",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/core/ProcessTransition.kt",
+        "app/src/main/java/com/changjietu/app/MainActivity.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "processTransition.markCompleted()"
+        ],
+        "app/src/main/java/com/changjietu/app/core/ProcessTransition.kt": [
+          "fun markCompleted(): Long",
+          "fun ack(id: Long)"
+        ],
+        "app/src/main/java/com/changjietu/app/MainActivity.kt": [
+          "LaunchedEffect(pendingProcessResultId)"
+        ]
+      },
+      "states": [
+        "idle",
+        "processing",
+        "completedPending",
+        "acknowledged"
+      ],
+      "events": [
+        "success",
+        "fail",
+        "navigate",
+        "ack"
+      ],
+      "required_invariant": "No completion navigation without successful initial processing; stale ack must not erase new event.",
+      "verification": "TLC ProcessResult + ProcessTransitionTest",
+      "decision": "retain"
+    },
+    {
+      "id": "PROC-03",
+      "subsystem": "processing",
+      "title": "Reprocess latest-wins and selection preservation",
+      "classification": "implicit",
+      "priority": "P0",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private var reprocessJob: Job? = null",
+          "private fun reprocessFromRanges(",
+          "if (isActive) _editor.value = updated"
+        ]
+      },
+      "states": [
+        "idle",
+        "cancellingPrevious",
+        "reencoding",
+        "newResult",
+        "error"
+      ],
+      "events": [
+        "drag/merge/delete",
+        "IO complete",
+        "cancel",
+        "new source"
+      ],
+      "required_invariant": "No stale edit result may replace the latest; preserve selection by identity or explain reset.",
+      "verification": "Needs real coroutine schedule tests and source lifetime contract",
+      "decision": "model_next"
+    },
+    {
+      "id": "PROC-04",
+      "subsystem": "processing",
+      "title": "Splitter JPEG write/rollback",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/image/processing/ImageSplitter.kt",
+        "app/src/main/java/com/changjietu/app/image/processing/SliceGeometry.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/image/processing/ImageSplitter.kt": [
+          "val results = mutableListOf<SliceOutput>()",
+          "request.outputDir.deleteRecursively()"
+        ],
+        "app/src/main/java/com/changjietu/app/image/processing/SliceGeometry.kt": [
+          "bottom = margins.top + range.last + 1"
+        ]
+      },
+      "states": [
+        "newFolder",
+        "writing",
+        "committed",
+        "rollback"
+      ],
+      "events": [
+        "write",
+        "encode error"
+      ],
+      "required_invariant": "No successful result references a missing or partially written file.",
+      "verification": "SliceRendererTest and SliceGeometryTest; injected write failure test needed",
+      "decision": "model_next"
+    },
+    {
+      "id": "SEL-01",
+      "subsystem": "result-selection",
+      "title": "Selection, merge, delete and reindex",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt",
+        "app/src/main/java/com/changjietu/app/core/ProcessModels.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "fun toggleSliceSelection(index: Int)",
+          "fun selectAllSlices()",
+          "fun deleteSlice(index: Int)"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt": [
+          "var previewIndex by remember"
+        ],
+        "app/src/main/java/com/changjietu/app/core/ProcessModels.kt": [
+          "selectedIndices: Set<Int>"
+        ]
+      },
+      "states": [
+        "allSelected",
+        "subset",
+        "empty",
+        "editing"
+      ],
+      "events": [
+        "toggle",
+        "select all",
+        "clear",
+        "merge",
+        "delete"
+      ],
+      "required_invariant": "Selected indices remain valid and exported content matches the current view.",
+      "verification": "OrderedSlicesTest; selection reset documented but requires device QA",
+      "decision": "model_next"
+    },
+    {
+      "id": "OUT-01",
+      "subsystem": "export",
+      "title": "Export snapshot and ordering",
+      "classification": "explicit+bounded_model",
+      "priority": "covered",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/feature/export/OrderedSlices.kt",
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt",
+        "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "fun selectedSlices(): List<SliceOutput>"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/export/OrderedSlices.kt": [
+          "fun ascending(slices:"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt": [
+          "for (slice in OrderedSlices.ascending(slices))"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt": [
+          "for (slice in OrderedSlices.ascending(slices))"
+        ]
+      },
+      "states": [
+        "selected",
+        "snapshot",
+        "writing",
+        "complete",
+        "failed"
+      ],
+      "events": [
+        "save",
+        "zip",
+        "share",
+        "select more"
+      ],
+      "required_invariant": "No empty submission; once started, a job uses the selected file snapshot.",
+      "verification": "TLC ExportSelection + OrderedSlicesTest + SliceZipperTest",
+      "decision": "retain"
+    },
+    {
+      "id": "OUT-02",
+      "subsystem": "export",
+      "title": "Legacy storage permission continuation",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt",
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt": [
+          "pendingPermissionKind",
+          "pendingZipName",
+          "rememberLauncherForActivityResult("
+        ],
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt": [
+          "Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q"
+        ]
+      },
+      "states": [
+        "permissionUnknown",
+        "requesting",
+        "granted",
+        "denied",
+        "resuming"
+      ],
+      "events": [
+        "save",
+        "zip",
+        "grant",
+        "deny",
+        "rotation"
+      ],
+      "required_invariant": "Only resume the action that requested permission; decline must not write.",
+      "verification": "UI state review; API 26–28 device test needed",
+      "decision": "model_next"
+    },
+    {
+      "id": "OUT-03",
+      "subsystem": "export",
+      "title": "Gallery MediaStore pending row transaction",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt": [
+          "MediaStore.MediaColumns.IS_PENDING",
+          "resolver.delete(",
+          "resolver.update(uri, done, null, null)"
+        ]
+      },
+      "states": [
+        "notCreated",
+        "pending",
+        "copied",
+        "published",
+        "compensated"
+      ],
+      "events": [
+        "insert",
+        "copy",
+        "publish",
+        "failure"
+      ],
+      "required_invariant": "Failed media writes do not leave visible partial rows; zero-publish should be handled.",
+      "verification": "Android integration test missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "OUT-04",
+      "subsystem": "export",
+      "title": "ZIP part file, commit and naming",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt": [
+          "val part = File(output.parentFile, output.name + \".part\")",
+          "if (!part.renameTo(output))"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "fun packageZipToDownloads("
+        ]
+      },
+      "states": [
+        "notStarted",
+        "partWriting",
+        "finalised",
+        "failed",
+        "cleaned"
+      ],
+      "events": [
+        "open part",
+        "write entries",
+        "rename",
+        "failure"
+      ],
+      "required_invariant": "Failed ZIP cannot leave partial published target; success retains shareable archive.",
+      "verification": "SliceZipperTest; cache lifetime still unproven",
+      "decision": "model_next"
+    },
+    {
+      "id": "OUT-05",
+      "subsystem": "export",
+      "title": "Outbound share intent and receiving-app boundary",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt": [
+          "Intent.ACTION_SEND_MULTIPLE",
+          "Intent.FLAG_GRANT_READ_URI_PERMISSION"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt": [
+          "fun launchShare(intent: Intent?)"
+        ]
+      },
+      "states": [
+        "ready",
+        "chooser",
+        "externalReceiver",
+        "returned"
+      ],
+      "events": [
+        "share",
+        "chooser open",
+        "receiver reads"
+      ],
+      "required_invariant": "URI grants cover attached files; receiving app can independently reorder inputs.",
+      "verification": "Share delivery / ordering unit tests; external-app device test missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "UI-01",
+      "subsystem": "result-ui",
+      "title": "Export busy, ZIP dialog and snackbar",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt": [
+          "var busy by remember",
+          "val showZipDialog = remember",
+          "var zipName by remember"
+        ]
+      },
+      "states": [
+        "idle",
+        "dialog",
+        "working",
+        "notification",
+        "error"
+      ],
+      "events": [
+        "open ZIP",
+        "save",
+        "finish",
+        "dismiss",
+        "rotate"
+      ],
+      "required_invariant": "A second export cannot start while one is pending; stale UI callbacks cannot misreport newer operation.",
+      "verification": "Device lifecycle tests missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "UI-02",
+      "subsystem": "result-ui",
+      "title": "Result preview expansion and detail page",
+      "classification": "implicit",
+      "priority": "P2",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/PreviewScreen.kt": [
+          "var editingExpanded by rememberSaveable",
+          "var showDetail by remember",
+          "var detailTop by remember"
+        ]
+      },
+      "states": [
+        "collapsed",
+        "expanded",
+        "detail",
+        "slicePreview"
+      ],
+      "events": [
+        "expand",
+        "detail",
+        "next page",
+        "dismiss"
+      ],
+      "required_invariant": "Closing a detail view must not display stale imagery on subsequent open.",
+      "verification": "Device rendering/screenshot tests missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "UI-03",
+      "subsystem": "process-ui",
+      "title": "Numeric field draft/commit",
+      "classification": "implicit",
+      "priority": "P2",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/ProcessScreen.kt": [
+          "var text by remember",
+          "var focused by remember",
+          "private fun commitPx("
+        ]
+      },
+      "states": [
+        "resting",
+        "editingDraft",
+        "validating",
+        "committed"
+      ],
+      "events": [
+        "type",
+        "done",
+        "blur",
+        "value change"
+      ],
+      "required_invariant": "Do not silently overwrite the focused draft; invalid values clamp consistently.",
+      "verification": "Manual input test missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "REC-01",
+      "subsystem": "history",
+      "title": "Recent metadata vs recoverable URI and thumbnails",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/history/RecentStore.kt",
+        "app/src/main/java/com/changjietu/app/feature/importui/HomeScreen.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/history/RecentStore.kt": [
+          "getSharedPreferences(\"recent_longshots\"",
+          "fun list(): List<RecentItem>"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/importui/HomeScreen.kt": [
+          "var thumbFailed by remember",
+          "viewModel.openRecent("
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "fun openRecent(uri: Uri)"
+        ]
+      },
+      "states": [
+        "listed",
+        "thumbnailLoading",
+        "thumbnailFailed",
+        "opened",
+        "stale"
+      ],
+      "events": [
+        "save recent",
+        "reopen",
+        "permission revoked"
+      ],
+      "required_invariant": "Stale item must show recoverable error rather than suggesting it was successfully reopened.",
+      "verification": "UriPersistencePolicyTest; storage lifecycle on-device test missing",
+      "decision": "model_next"
+    },
+    {
+      "id": "RES-01",
+      "subsystem": "resources",
+      "title": "Slice/ZIP cache retention and external file lifetime",
+      "classification": "implicit",
+      "priority": "P0",
+      "files": [
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
+        "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt",
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "private fun cleanupOldEntries(",
+          "entries.drop(keep).forEach"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt": [
+          "val part = File("
+        ],
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt": [
+          "slice.file"
+        ]
+      },
+      "states": [
+        "live",
+        "exportInProgress",
+        "referencedByReceiver",
+        "eligibleForCleanup",
+        "deleted"
+      ],
+      "events": [
+        "create",
+        "export",
+        "new job cleans",
+        "receiver reads",
+        "expiry"
+      ],
+      "required_invariant": "A referenced file must survive active export and sharing grants; deleting by filename count alone cannot establish safety.",
+      "verification": "UNVERIFIED: no lease, TTL or lifecycle contract for external reader",
+      "decision": "model_first_then_fix"
+    },
+    {
+      "id": "RES-02",
+      "subsystem": "resources",
+      "title": "RegionDecoder/Bitmap handle ownership",
+      "classification": "implicit",
+      "priority": "P1",
+      "files": [
+        "app/src/main/java/com/changjietu/app/image/processing/RegionDecoder.kt",
+        "app/src/main/java/com/changjietu/app/image/processing/RegionSource.kt",
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+      ],
+      "anchors": {
+        "app/src/main/java/com/changjietu/app/image/processing/RegionDecoder.kt": [
+          "class BitmapRegionSource",
+          "fun decodeRegion("
+        ],
+        "app/src/main/java/com/changjietu/app/image/processing/RegionSource.kt": [
+          "class BitmapRegionHandle",
+          "override fun close()"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
+          "handle.use { hdl ->"
+        ]
+      },
+      "states": [
+        "closed",
+        "opened",
+        "regionDecoded",
+        "released"
+      ],
+      "events": [
+        "open",
+        "decode",
+        "copy bitmap",
+        "close"
+      ],
+      "required_invariant": "Always release decoder and handles; never publish a recycled Bitmap to UI.",
+      "verification": "PreviewSourceSafetyTest + RegionDecoderUtilTest",
+      "decision": "retain"
+    },
+    {
+      "id": "CI-01",
+      "subsystem": "delivery",
+      "title": "CI verify, signed release draft and promotion",
+      "classification": "implicit",
+      "priority": "P0",
+      "files": [
+        ".github/workflows/android-release.yml",
+        ".github/workflows/formal-verification.yml"
+      ],
+      "anchors": {
+        ".github/workflows/android-release.yml": [
+          "needs: verify",
+          "gh release create \"$RELEASE_TAG\"",
+          "--draft=false"
+        ],
+        ".github/workflows/formal-verification.yml": [
+          "bounded-tlc:"
+        ]
+      },
+      "states": [
+        "prVerify",
+        "mainVerify",
+        "signedBuild",
+        "draft",
+        "readback",
+        "published",
+        "failed"
+      ],
+      "events": [
+        "merge",
+        "[publish]",
+        "tag",
+        "signature check",
+        "checksum",
+        "readback"
+      ],
+      "required_invariant": "Never publish without all required tests, correct signer, checksum readback and monotonic versionCode.",
+      "verification": "Workflow checks; actual CI recent green. Tag/release replay failures remain manual.",
+      "decision": "retain"
+    }
+  ]
+}

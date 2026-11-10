@@ -80,6 +80,10 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
 2. **禁止整图 BitmapFactory.decode 主路径**：超长图必须使用 `BitmapRegionDecoder`（或等价分块 API）按区域解码；单片处理完及时 recycle。目标可处理至少 1440 × 50000 量级而不因整图解码 OOM（GOAL.md §G）。
 3. **禁止引入云端/OCR/OpenCV**：不做云端处理、账号、网络必需逻辑、AI 修复文字、复杂 OCR、OpenCV 依赖（GOAL.md §H）。
 
+## 隐式状态机与回归门禁
+
+涉及导航、协程、切线状态、保存、分享、缓存与发布时，先按需阅读 [状态机注册表](docs/state-machines/registry.json)，使用 [.cursor Skill](.cursor/skills/audit-longshot-state-machines/SKILL.md) 定位风险和验证范围。运行 `python3 tools/verify_state_machines.py`，再运行受影响的 JVM/Android 测试与 `bash formal/longshot/verify.sh`。只有四个子系统有有界 TLC 模型；不可把全部 29 个条目描述为已经形式化证明。状态机目录是 AI Agent 的导航资料，不覆盖真实代码和 GOAL.md。
+
 ## 禁止事项
 
 - 密钥 / token 入库；破坏性 git（除非用户明确要求）
