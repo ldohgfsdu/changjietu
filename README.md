@@ -16,7 +16,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.9`（versionCode 10；发布状态以 GitHub Releases 为准）
+- 版本：`0.2.9`（versionCode 11；发布状态以 GitHub Releases 为准）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
@@ -142,7 +142,13 @@ app/src/main/java/com/changjietu/app/
 3. `docs/DECISIONS.md`
 4. `GOAL.md`
 
-## v0.2.9 进程重建导航恢复
+## v0.2.9 裁边/切线可见性安全补丁
+
+- 默认保留整张源图，不自动裁去可能包含文字的边缘；用户可主动启用自动裁边。
+- 进入精细切线编辑器时自动定位蓝色切线/手柄，并修正顶部导航高度导致的滚动位置偏差。
+- CI 自动验证通过；Android 真机拖动、图片导出和不同设备 UI 尚需复验。
+
+## v0.2.8 进程重建导航恢复
 
 - 修复 Android 恢复旧页面、但原图与切片内存状态已经丢失时，结果页和裁切页连环空白提示：自动返回可用的首页或处理页。
 - 保留合法的选图/外部分享加载状态，避免新图尚未解析就被误判为数据丢失。
