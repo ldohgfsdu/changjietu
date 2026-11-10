@@ -26,6 +26,19 @@ def verify_initial_process_admission(code: str) -> bool:
         and "val generation = sourceGeneration" in block[:claim]
     )
 
+def verify_import_claims_loading_before_launch(code: str) -> bool:
+    start = code.split("fun openUri(uri: Uri, source: UriAccessSource, flags: Int = 0) {", 1)
+    if len(start) != 2:
+        return False
+    block = start[1].split("private fun tryPersistRead(", 1)[0]
+    loading = block.find('_homeState.value = HomeUiState.Loading("正在分析图片…")')
+    launch = block.find("viewModelScope.launch {")
+    return (
+        0 <= loading < launch
+        and block.find("_source.value = null") < launch
+        and block.find("_editor.value = null") < launch
+    )
+
 def main() -> None:
     data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
     machines = data["machines"]
@@ -69,6 +82,18 @@ def main() -> None:
         vm.replace("isProcessing = true,\n            statusMessage = \"正在切片…\"", 
                    "isProcessing = false,\n            statusMessage = \"正在切片…\"")
     ), "Admission negative control did not detect broken processing claim"
+
+    assert verify_import_claims_loading_before_launch(vm), (
+        "New import must claim loading before navigation can evaluate restored route."
+    )
+    assert not verify_import_claims_loading_before_launch(
+        vm.replace('_homeState.value = HomeUiState.Loading("正在分析图片…")',
+                   "_homeState.value = HomeUiState.Idle", 1)
+    ), "Import-state negative control unexpectedly passed"
+
+    activity = (ROOT / "app/src/main/java/com/changjietu/app/MainActivity.kt").read_text()
+    assert "NavigationRecovery.forProcess(" in activity
+    assert "NavigationRecovery.forPreview(" in activity
 
     count = Counter(m["priority"] for m in machines)
     print(f"PASS: {len(machines)} state machines, {len(seen)} mapped files, {len(discovered)} discovered state-bearing Kotlin files")
