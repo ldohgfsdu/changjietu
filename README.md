@@ -16,7 +16,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.9`（versionCode 11；发布状态以 GitHub Releases 为准）
+- 版本：`0.2.10`（versionCode 12；发布状态以 GitHub Releases 为准）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
@@ -93,7 +93,7 @@ changjietu.release.keyPassword=...
 
 ```bash
 # 先在 Releases 页面下载对应版本的 APK 到当前目录
-adb install -r changjietu-0.2.9-release.apk
+adb install -r changjietu-0.2.10-release.apk
 ```
 
 - 正式分发：GitHub Releases（APK 和同名 `.sha256` 两个资产，不将 APK 写入源码仓库）
@@ -141,6 +141,13 @@ app/src/main/java/com/changjietu/app/
 2. `docs/CURRENT_STATUS.md`
 3. `docs/DECISIONS.md`
 4. `GOAL.md`
+
+## v0.2.10 自动切点与横向裁边安全补丁
+
+- 在片段允许的更大范围查找空白带，减少表格或文字被迫切开的情况。
+- 没找到可确认空白带时，处理页提醒人工检查，编辑器把对应切线标红。
+- 自动裁边默认只裁上下，始终保留左右像素；手动横向裁边仍可用。
+- 新增切线与裁边回归测试，源码 CI 通过后才可发布；**仍需要用原始长图复测最终导出**。
 
 ## v0.2.9 裁边/切线可见性安全补丁
 
