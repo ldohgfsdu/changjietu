@@ -58,6 +58,6 @@ class UiLayoutScreenshotContractTest {
             assertTrue(source.contains(".size(HANDLE_SIZE)"))
         }
         // 不允许手柄单击触发切片重算；此处是源码契约，不代替设备手势实测。
-        assertTrue(overview.contains("if (accumulated != 0f) onEnd()"))
+        assertTrue(overview.contains("if ((base + accumulated / viewHeightPx * contentHeight).roundToInt() != base) onEnd()"))
     }
 }
