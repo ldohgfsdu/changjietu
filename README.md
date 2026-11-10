@@ -39,9 +39,17 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 | 分享 | `ACTION_SEND_MULTIPLE` + `image/*` + FileProvider URI |
 | 分块解码 | `BitmapRegionDecoder`，单片处理完即释放 |
 
-## 非目标（本版不做）
+## 开发中的内容感知切点（未正式发布）
 
-云端、账号、OCR、PDF、AI 修字、OpenCV、重复顶栏去除、滚动录屏。严重压缩源图只警告，**不会假装恢复原文**。
+[Draft PR #20](https://github.com/ldohgfsdu/changjietu/pull/20) 正在新增端侧中文 OCR **文字行位置**避让，不存 OCR 文本；识别进度/可跳过、风险切点直达及 48dp 手柄。预览和正式切片使用相同的文字位置保护区。需 Android CI、复杂长图和真机性能验证通过后才可发版，**当前 v0.2.10 不包含此功能**。
+
+- 技术与验收：[docs/CONTENT_AWARE_SEAMS_V1.md](docs/CONTENT_AWARE_SEAMS_V1.md)
+- 尚未保证表格或图片完整性，输出仍按源像素不缩放；自动横向裁边继续采用谨慎保护策略。
+- 使用内置 OCR 会增加 APK 体积，尚无经真机验证的新增体积和耗时数据。
+
+## 非目标
+
+云端识别、账号、PDF、AI 修字、OpenCV、重复顶栏去除、滚动录屏。严重压缩源图只警告，**不会假装恢复原文**。
 
 ## 构建
 
