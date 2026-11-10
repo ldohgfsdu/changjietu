@@ -97,9 +97,9 @@ fun ProcessScreen(
     val processing = editor?.isProcessing == true
     // A cut in a table or text block cannot be promised safe without an
     // identified gap. Surface the uncertainty before the user exports slices.
-    val uncertainAutoCuts = remember(previewPlan, src, manualCuts) {
+    val uncertainCuts = remember(previewPlan, src) {
         val p = previewPlan
-        if (src == null || p == null || manualCuts != null) {
+        if (src == null || p == null) {
             emptyList()
         } else {
             val first = p.contentTop
@@ -213,13 +213,13 @@ fun ProcessScreen(
                         color = MiuixTheme.colorScheme.onSurfaceSecondary,
                     )
                 }
-                if (uncertainAutoCuts.isNotEmpty()) {
+                if (uncertainCuts.isNotEmpty()) {
                     Surface(
                         color = MiuixTheme.colorScheme.surface,
                         shape = RoundedCornerShape(10.dp),
                     ) {
                         Text(
-                            "检测到 ${uncertainAutoCuts.size} 条切线缺少可靠空白带，" +
+                            "检测到 ${uncertainCuts.size} 条切线缺少可靠空白带，" +
                                 "可能穿过文字、表格或图片。生成前请点开预览检查并手动调整。",
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceSecondary,
@@ -318,6 +318,7 @@ fun ProcessScreen(
                 plan = planNow,
                 showCrop = settings.cropMargins,
                 manualActive = manualActive,
+                uncertainCutEnds = uncertainCuts.toSet(),
                 onCutPreview = viewModel::previewManualCut,
                 onAddCutPoint = viewModel::addManualCutPoint,
                 onClearManualCuts = viewModel::clearManualCuts,
@@ -767,6 +768,7 @@ private fun CutPreviewDialog(
     plan: PreviewPlan,
     showCrop: Boolean,
     manualActive: Boolean,
+    uncertainCutEnds: Set<Int>,
     onCutPreview: (Int, Int) -> Unit,
     onAddCutPoint: (Int) -> Unit,
     onClearManualCuts: () -> Unit,
@@ -798,6 +800,7 @@ private fun CutPreviewDialog(
                         plan = plan,
                         showCrop = showCrop,
                         manualActive = manualActive,
+                        uncertainCutEnds = uncertainCutEnds,
                         onPreviewCut = onCutPreview,
                         onAddCutPoint = onAddCutPoint,
                         onClearManualCuts = onClearManualCuts,
