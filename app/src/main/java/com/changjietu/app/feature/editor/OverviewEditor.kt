@@ -436,7 +436,7 @@ private fun BoxScope.VerticalDragHandle(
                         onDelta(base, accumulated / viewHeightPx * contentHeight)
                     }
                     // 点按/原位释放不触发重切 IO；改变了切线才提交。
-                    if (accumulated != 0f) onEnd()
+                    if ((base + accumulated / viewHeightPx * contentHeight).roundToInt() != base) onEnd()
                 }
             },
         contentAlignment = Alignment.Center,
