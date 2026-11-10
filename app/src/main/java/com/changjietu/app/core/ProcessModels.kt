@@ -15,7 +15,9 @@ data class ProcessSettings(
     val mode: ProcessMode = ProcessMode.FOR_AI,
     val targetHeight: Int = 2200,
     val overlap: Int = 0,
-    val cropMargins: Boolean = true,
+    // Fail-safe default: preserve all source pixels until the user explicitly opts into cropping.
+    // Column-averaged margin detection can miss sparse text at the edge of a long screenshot.
+    val cropMargins: Boolean = false,
     val removeStickyHeader: Boolean = false, // phase-2, always false in MVP
     val jpegQuality: Int = 95,
     val drawBadge: Boolean = true,
