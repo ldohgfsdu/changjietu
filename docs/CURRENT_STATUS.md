@@ -25,12 +25,21 @@
 
 ---
 
+## 2026-11-11：v0.2.11 端侧 OCR 候选发布
+
+- PR #20（合并提交 3488549）：增加 bundled Chinese ML Kit 端侧文字行识别、OCR 源坐标保护区、切线规划和预览/导出一致性、进度和跳过、48dp 操作手柄以及深色警告区域适配。
+- 正式发版由原 CI 的 verify + 签名连续性 + SHA-256 与 Release 回读门禁控制。
+- **已知风险**：目前只有结构/算法测试验证，暂无原始长图的设备端 OCR 正确率、速度、内存和实机导出逐像素验收。表格、图片与未识别文字仍可能被切开。
+- v0.2.11 属于提供实机验证的候选版，不可宣传成“100% 智能无损切点”。
+
+---
+
 ## 1. 当前版本
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.10** | `app/build.gradle.kts` |
-| versionCode | **12** | 同上 |
+| versionName | **0.2.11** | `app/build.gradle.kts` |
+| versionCode | **13** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 
