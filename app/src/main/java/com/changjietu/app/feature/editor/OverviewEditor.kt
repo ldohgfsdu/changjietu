@@ -60,6 +60,7 @@ private const val MAX_VIEW_HEIGHT_DP = 6000f
 
 /** 切点/裁切手柄直径。 */
 private val HANDLE_SIZE = 38.dp
+private val HANDLE_TOUCH_SIZE = 48.dp // ≥44dp 命中区，视觉圆点仍为 38dp
 
 private val CutLineColor = Color(0xFF3482FF)
 private val CropLineColor = Color(0xFFFFB95C)
@@ -139,7 +140,7 @@ fun OverviewEditor(
                 .coerceAtLeast(1f)
                 .coerceAtMost(MAX_VIEW_HEIGHT_DP)
             val viewHeightPx = with(density) { viewHeightDp.dp.toPx() }
-            val handleSizePx = with(density) { HANDLE_SIZE.toPx() }
+            val handleSizePx = with(density) { HANDLE_TOUCH_SIZE.toPx() }
             val scrollState = rememberScrollState()
 
             Box(
@@ -416,12 +417,10 @@ private fun BoxScope.VerticalDragHandle(
                     .coerceIn(0f, (viewHeightPx - handleSizePx).coerceAtLeast(0f))
                 IntOffset(0, top.roundToInt())
             }
-            .size(HANDLE_SIZE)
-            .border(2.dp, Color.White, CircleShape)
-            .background(color, CircleShape)
+            .size(HANDLE_TOUCH_SIZE)
             .pointerInput(contentHeight, viewHeightPx, enabled) {
                 if (!enabled) return@pointerInput
-                // 在 Initial 阶段吃掉按下，避免外层纵向滚动把切点拖动当成「拖动预览」。
+                // Initial 阶段取得切线拖动所有权，防止滚动父容器抢手势。
                 awaitEachGesture {
                     val down = awaitFirstDown(
                         requireUnconsumed = false,
@@ -436,20 +435,29 @@ private fun BoxScope.VerticalDragHandle(
                         accumulated += dy
                         onDelta(base, accumulated / viewHeightPx * contentHeight)
                     }
-                    onEnd()
+                    // 点按/原位释放不触发重切 IO；改变了切线才提交。
+                    if ((base + accumulated / viewHeightPx * contentHeight).roundToInt() != base) onEnd()
                 }
             },
         contentAlignment = Alignment.Center,
     ) {
-        if (icon) {
-            Icon(
-                MiuixIcons.ArrowUpDown,
-                contentDescription = "拖动调整切点",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
-        } else {
-            Text(label, color = Color.White, fontSize = 11.sp)
+        Box(
+            Modifier
+                .size(HANDLE_SIZE)
+                .border(2.dp, Color.White, CircleShape)
+                .background(color, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (icon) {
+                Icon(
+                    MiuixIcons.ArrowUpDown,
+                    contentDescription = "拖动调整切点",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                Text(label, color = Color.White, fontSize = 11.sp)
+            }
         }
     }
 }

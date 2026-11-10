@@ -92,3 +92,7 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
 - **禁止整图 BitmapFactory.decode 主路径**（见架构红线 2）
 - **禁止引入云端/OCR/OpenCV**（见架构红线 3）
 - 改完要验证：`./gradlew :app:assembleDebug` 与相关 unit test
+
+## 手势专项门禁
+
+修改切线拖动、滚动、触控区域或释放重切时，先运行 [.cursor/skills/verify-gesture-interactions/SKILL.md](.cursor/skills/verify-gesture-interactions/SKILL.md)，以 [docs/GESTURE_ACCEPTANCE.md](docs/GESTURE_ACCEPTANCE.md) 的场景和验证等级报告结果；不要以 Web 动画参数替代 Android Compose 手势。
