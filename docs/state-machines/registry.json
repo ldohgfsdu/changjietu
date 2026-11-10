@@ -20,29 +20,40 @@
       "classification": "implicit",
       "priority": "P1",
       "files": [
-        "app/src/main/java/com/changjietu/app/MainActivity.kt"
+        "app/src/main/java/com/changjietu/app/MainActivity.kt",
+        "app/src/main/java/com/changjietu/app/core/NavigationRecovery.kt"
       ],
       "anchors": {
         "app/src/main/java/com/changjietu/app/MainActivity.kt": [
           "rememberNavController()",
           "LaunchedEffect(pendingShareId)",
           "LaunchedEffect(pendingProcessResultId)"
+        ],
+        "app/src/main/java/com/changjietu/app/core/NavigationRecovery.kt": [
+          "enum class RecoveryDestination",
+          "fun forProcess(",
+          "fun forPreview("
         ]
       },
       "states": [
         "home",
-        "process",
-        "preview"
+        "processWithSource",
+        "processLoading",
+        "previewWithSlices",
+        "restoredProcessWithoutSource",
+        "restoredPreviewWithoutSlices"
       ],
       "events": [
+        "navigation",
         "onOpened",
         "share pending",
         "process result pending",
-        "back"
+        "process death/restoration",
+        "source analysis complete"
       ],
-      "required_invariant": "No duplicate or stale navigation to preview; back returns to intended screen.",
-      "verification": "Manual navigation/rotation test",
-      "decision": "model_next"
+      "required_invariant": "A restored process or preview destination must not strand the user if the required source/slices are absent; importing source must not be falsely dismissed.",
+      "verification": "NavigationRecoveryTest (pure JVM), tools/verify_state_machines.py source-order + guard mutations, real process-death UI still requires device test",
+      "decision": "Restore invalid screen to home/process; preserve normal loading and valid slices."
     },
     {
       "id": "ING-01",
