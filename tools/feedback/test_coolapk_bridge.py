@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from coolapk_bridge import GitHub, event_feedback, issue_body, issue_title, marker, normalize
+from coolapk_bridge import GitHub, event_feedback, issue_body, issue_title, marker, normalize, require_target_feed
 
 
 BASE = {"external_id": "reply:201:303", "source_url": "https://www.coolapk.com/feed/201?replyid=303",
@@ -21,6 +21,13 @@ class IntakeTests(unittest.TestCase):
                     "https://www.coolapk.com/@evil/feed/201", "https://www.coolapk.com:8443/feed/201"]:
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 normalize({**BASE, "source_url": bad})
+
+    def test_single_post_allowlist(self):
+        item = normalize(BASE)
+        self.assertEqual(require_target_feed(item, "201"), item)
+        for target in ["", "abc", "202", "201/another"]:
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                require_target_feed(item, target)
 
     def test_rejects_invalid_payload(self):
         for payload in [{**BASE, "external_id": "a b"}, {**BASE, "text": ""},
