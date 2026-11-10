@@ -334,10 +334,10 @@ fun ProcessScreen(
                     50,
                 )
                 if (conflict) {
-                    Surface(color = Color(0xFFFFF4E5), shape = RoundedCornerShape(12.dp)) {
+                    Surface(color = MiuixTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp)) {
                         Text(
                             "裁边范围与切线冲突：部分切点已落在裁边外并被忽略，请调整裁边或切线。",
-                            color = Color(0xFF8A4B00),
+                            color = MiuixTheme.colorScheme.onSurface,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(12.dp),
                         )
@@ -358,7 +358,7 @@ fun ProcessScreen(
                 Surface(color = Color(0xFFFFEDEA), shape = RoundedCornerShape(12.dp)) {
                     Text(
                         it,
-                        color = Color(0xFF8C1D18),
+                        color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(12.dp),
                     )
@@ -462,7 +462,7 @@ private fun QualitySummary(src: SourceInfo) {
         QualityLevel.LOW, QualityLevel.UNRECOVERABLE -> {
             val danger = q.level == QualityLevel.UNRECOVERABLE
             Surface(
-                color = if (danger) Color(0xFFFFEDEA) else Color(0xFFFFF4E5),
+                color = MiuixTheme.colorScheme.surface,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -471,7 +471,7 @@ private fun QualitySummary(src: SourceInfo) {
                         q.level.displayName(),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (danger) Color(0xFF8C1D18) else Color(0xFF8A4B00),
+                        color = MiuixTheme.colorScheme.onSurface,
                     )
                     if (danger) {
                         Text(
