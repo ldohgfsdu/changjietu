@@ -9,12 +9,22 @@
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.7** | `app/build.gradle.kts` |
-| versionCode | **9** | 同上 |
+| versionName | **0.2.8** | `app/build.gradle.kts` |
+| versionCode | **10** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 
 > 当前版本号用于本轮补丁发布；是否已正式交付以 GitHub Releases 和成功的 publish job 为准。下文 §2.1–2.9 是历史批次记录，不是 2026-11-09 的当前版本。
+
+---
+
+## 2026-11-10：v0.2.8 恢复无效页面导航修复
+
+- 发现处理页和结果页在 Android 恢复旧导航栈而 ViewModel 新建后，显示无源/无切片的两个死胡同；根因机制来自导航状态与内存状态寿命不一致，尚无 logcat 证实实际触发事件。
+- 新增 `NavigationRecovery` 纯决策模型：无数据且无活跃加载时从无效页面返回 home；若原图仍在而切片为空，则从结果页返回 process。
+- 将 `openUri` 的 Loading 状态提前到启动协程之前，保护正常选图和系统分享的异步加载过程。
+- `NavigationRecoveryTest` 和 `tools/verify_state_machines.py` 加入回归门禁；不声明恢复旧编辑内容。见 `docs/state-machines/NAVIGATION_RECOVERY.md`。
+- Android 真机进程死亡、旋转、分享恢复仍待复验。
 
 ---
 
