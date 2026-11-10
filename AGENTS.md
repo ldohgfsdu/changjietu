@@ -48,7 +48,7 @@ Adopted covenant: 1.0.0
 Kotlin · Jetpack Compose · Material 3 · `BitmapRegionDecoder` 分块解码
 
 - applicationId：`com.changjietu.app`
-- 当前开发版本：**0.2.9**（versionCode 11；正式发布状态见 Releases）
+- 当前开发版本：**0.2.10**（versionCode 12；正式发布状态见 Releases）
 - 模块：`:app`（单 module，包结构按 GOAL.md 建议工程结构）
 
 ## 构建与 APK
