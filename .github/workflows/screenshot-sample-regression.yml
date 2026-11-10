@@ -1,0 +1,53 @@
+name: Screenshot sample regression (nightly)
+
+on:
+  schedule:
+    # Daily targeted regression, independent of APK publishing.
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshot-samples-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sample-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          sdkmanager_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
+          test -x "$sdkmanager_bin"
+          "$sdkmanager_bin" "platforms;android-35" "build-tools;35.0.0"
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          chmod +x gradlew tools/aapt2
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Run deterministic screenshot sample corpus and geometry tests
+        run: |
+          ./gradlew :app:testDebugUnitTest \
+            --tests 'com.changjietu.app.image.analysis.ScreenshotSampleRegressionTest' \
+            --tests 'com.changjietu.app.image.analysis.ContentAwareCutTest' \
+            --tests 'com.changjietu.app.image.analysis.ContentProtectedRowsTest' \
+            --tests 'com.changjietu.app.image.analysis.SplitPointDetectorUnsafeSeamTest' \
+            --tests 'com.changjietu.app.core.SafeCropMarginsTest' \
+            --no-daemon --stacktrace
+      - name: Archive sample failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-regression-${{ github.run_id }}
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 14
