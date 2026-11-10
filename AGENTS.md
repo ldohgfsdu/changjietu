@@ -78,7 +78,7 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
 
 1. **禁止 AI 超分恢复**：禁止实现或暗示「AI 超分恢复原文」。源图严重压缩时只能警告，不能假装增强后恢复了文字（GOAL.md §B、§H）。
 2. **禁止整图 BitmapFactory.decode 主路径**：超长图必须使用 `BitmapRegionDecoder`（或等价分块 API）按区域解码；单片处理完及时 recycle。目标可处理至少 1440 × 50000 量级而不因整图解码 OOM（GOAL.md §G）。
-3. **禁止引入云端/OCR/OpenCV**：不做云端处理、账号、网络必需逻辑、AI 修复文字、复杂 OCR、OpenCV 依赖（GOAL.md §H）。
+3. **禁止云端识别 / 文本重建 / OpenCV**：用户已批准新增本地 OCR **仅定位文字区域以避开切线**，不得上传截图、长期保存识别文字、利用生成模型猜测缺失字符或加入 OpenCV 依赖。其他云端与账号禁令不变（GOAL.md §H 的局部增量）。
 
 ## 隐式状态机与回归门禁
 
@@ -90,5 +90,5 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
 - 不擅自扩大范围；先跟 GOAL.md 和用户指令
 - **禁止 AI 超分恢复**（见架构红线 1）
 - **禁止整图 BitmapFactory.decode 主路径**（见架构红线 2）
-- **禁止引入云端/OCR/OpenCV**（见架构红线 3）
+- **禁止云端 OCR / 截图上传 / 文本重建 / OpenCV**；允许已批准的端侧 OCR 文字框定位（见架构红线 3）
 - 改完要验证：`./gradlew :app:assembleDebug` 与相关 unit test
