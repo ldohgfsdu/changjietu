@@ -259,12 +259,22 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         publishPreviewPlan(src, _settings.value)
     }
 
+    /**
+     * Automatic left/right trimming is unsafe for long feeds: a sparse avatar or
+     * glyph at the edge can be diluted by thousands of empty rows in the mean
+     * column-energy map. Preserve source width unless the user explicitly sets
+     * manual margins; continue supporting opt-in automatic top/bottom trimming.
+     */
+    private fun safeAutomaticMargins(src: SourceInfo): Margins =
+        src.margins.copy(left = 0, right = 0)
+
     private fun effectiveMargins(src: SourceInfo, settings: ProcessSettings): Margins =
-        if (!settings.cropMargins) Margins(0, 0, 0, 0) else (_manualMargins.value ?: src.margins)
+        if (!settings.cropMargins) Margins(0, 0, 0, 0)
+        else (_manualMargins.value ?: safeAutomaticMargins(src))
 
     fun updateManualMargins(transform: (Margins) -> Margins) {
         val src = _source.value ?: return
-        val next = transform(_manualMargins.value ?: src.margins)
+        val next = transform(_manualMargins.value ?: safeAutomaticMargins(src))
         _manualMargins.value = SourceCutGeometry.sanitizeMargins(next, src.width, src.height)
         publishPreviewPlan(src, _settings.value)
     }
