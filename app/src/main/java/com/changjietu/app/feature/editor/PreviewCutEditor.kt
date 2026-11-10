@@ -227,7 +227,12 @@ fun PreviewCutEditor(
                             plan.sourceWidth.coerceAtLeast(1) * w
                         val cropTopY = contentTop.toFloat() / sourceHeight * h
                         val cropBottomY = (contentTop + contentHeight).toFloat() / sourceHeight * h
-                        if (showCrop) {
+                        // Do not draw a misleading orange "cropped" rectangle
+                        // when no pixels will actually be removed.
+                        val hasCrop = plan.contentLeft > 0 || plan.contentTop > 0 ||
+                            plan.contentLeft + plan.contentWidth < plan.sourceWidth ||
+                            plan.contentTop + plan.contentHeight < plan.sourceHeight
+                        if (showCrop && hasCrop) {
                             drawRect(
                                 color = CropLineColor,
                                 topLeft = androidx.compose.ui.geometry.Offset(cropLeft, cropTopY),
