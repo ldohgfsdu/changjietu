@@ -205,7 +205,8 @@ fun ProcessScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "本机识别文字中 ${textScan.completed}/${textScan.total.coerceAtLeast(1)}",
+                            if (textScan.total == 0) "准备本机文字识别…" else
+                                "本机识别文字中 ${textScan.completed}/${textScan.total}",
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceSecondary,
                             modifier = Modifier.weight(1f),
