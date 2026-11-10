@@ -13,6 +13,7 @@ import com.changjietu.app.core.ProcessErrorMessages
 import com.changjietu.app.core.ProcessSettings
 import com.changjietu.app.core.ProcessTransition
 import com.changjietu.app.core.ShareDelivery
+import com.changjietu.app.core.SafeCropMargins
 import com.changjietu.app.core.SourceCutGeometry
 import com.changjietu.app.core.SourceInfo
 import com.changjietu.app.core.UriAccessSource
@@ -260,11 +261,11 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun effectiveMargins(src: SourceInfo, settings: ProcessSettings): Margins =
-        if (!settings.cropMargins) Margins(0, 0, 0, 0) else (_manualMargins.value ?: src.margins)
+        SafeCropMargins.effective(settings.cropMargins, src.margins, _manualMargins.value)
 
     fun updateManualMargins(transform: (Margins) -> Margins) {
         val src = _source.value ?: return
-        val next = transform(_manualMargins.value ?: src.margins)
+        val next = transform(_manualMargins.value ?: SafeCropMargins.automatic(src.margins))
         _manualMargins.value = SourceCutGeometry.sanitizeMargins(next, src.width, src.height)
         publishPreviewPlan(src, _settings.value)
     }

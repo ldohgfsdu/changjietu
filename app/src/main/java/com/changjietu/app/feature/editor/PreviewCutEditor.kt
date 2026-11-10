@@ -59,6 +59,7 @@ private const val MAX_VIEW_HEIGHT_DP = 6000f
 
 private val HANDLE_SIZE = 38.dp
 private val CutLineColor = Color(0xFF3482FF)
+private val UncertainLineColor = Color(0xFFFF5454)
 private val CropLineColor = Color(0xFFE6A23C)
 
 /**
@@ -71,6 +72,7 @@ fun PreviewCutEditor(
     plan: PreviewPlan,
     showCrop: Boolean,
     manualActive: Boolean,
+    uncertainCutEnds: Set<Int> = emptySet(),
     onPreviewCut: (Int, Int) -> Unit,
     onAddCutPoint: (Int) -> Unit,
     onClearManualCuts: () -> Unit,
@@ -102,6 +104,14 @@ fun PreviewCutEditor(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             fontSize = 12.sp,
         )
+        if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds) {
+            Text(
+                "红色切线：未检测到可靠空白，可能截断文字或表格，请手动检查",
+                color = UncertainLineColor,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                fontSize = 12.sp,
+            )
+        }
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
             val density = LocalDensity.current
             val aspect = bitmap.height.toFloat() / bitmap.width.coerceAtLeast(1).toFloat()
@@ -227,7 +237,12 @@ fun PreviewCutEditor(
                             plan.sourceWidth.coerceAtLeast(1) * w
                         val cropTopY = contentTop.toFloat() / sourceHeight * h
                         val cropBottomY = (contentTop + contentHeight).toFloat() / sourceHeight * h
-                        if (showCrop) {
+                        // Do not draw a misleading orange "cropped" rectangle
+                        // when no pixels will actually be removed.
+                        val hasCrop = plan.contentLeft > 0 || plan.contentTop > 0 ||
+                            plan.contentLeft + plan.contentWidth < plan.sourceWidth ||
+                            plan.contentTop + plan.contentHeight < plan.sourceHeight
+                        if (showCrop && hasCrop) {
                             drawRect(
                                 color = CropLineColor,
                                 topLeft = androidx.compose.ui.geometry.Offset(cropLeft, cropTopY),
@@ -242,7 +257,7 @@ fun PreviewCutEditor(
                             val y = (contentTop + cuts[i]).toFloat() / sourceHeight * h
                             val selected = i == selectedCutIndex
                             drawLine(
-                                color = CutLineColor,
+                                color = if (cuts[i] in uncertainCutEnds) UncertainLineColor else CutLineColor,
                                 start = androidx.compose.ui.geometry.Offset(cropLeft, y),
                                 end = androidx.compose.ui.geometry.Offset(cropRight, y),
                                 strokeWidth = (if (selected) 4.dp else 3.dp).toPx(),
@@ -282,7 +297,7 @@ fun PreviewCutEditor(
                                 }
                                 .size(HANDLE_SIZE)
                                 .border(if (selected) 3.dp else 2.dp, Color.White, CircleShape)
-                                .background(CutLineColor, CircleShape)
+                                .background(if (end in uncertainCutEnds) UncertainLineColor else CutLineColor, CircleShape)
                                 .pointerInput(index, contentTop, sourceHeight, viewHeightPx) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(
