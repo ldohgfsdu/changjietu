@@ -2,6 +2,12 @@
 
 **状态：仅 GitHub 接收端已实现，不代表自动监听酷安或自动回复酷安。** 本变更不修改 Android App、不改变既有构建、签名和发布规则。
 
+## 唯一反馈帖（新增约束）
+
+本试点**只接受一条酷安反馈帖的评论**，不监测账号主页、关键词或全站内容。发帖后，从链接形如 https://www.coolapk.com/feed/123456 中取出帖子 ID，在仓库 Settings → Secrets and variables → Actions → Variables 中新增 `COOLAPK_TARGET_FEED_ID=123456`。尚未配置时接收器会拒绝所有反馈，确保不会误收其他帖子。
+
+评论采集器仍未实现；已有接收器只能处理经授权的外部程序主动推送的单条评论。外部 `external_id` 需要唯一对应一条评论（而不是整个帖子），以便每条评论分别去重和追踪原作者。暂不自动回复酷安。
+
 ## 数据流
 
 已获授权的外部采集器（尚待接入） → GitHub repository_dispatch: coolapk-feedback → JSON 校验 → 按外部 ID 去重 → GitHub Issue → 人工分拣 → 独立 Draft PR → 完整测试和审核 → 正式发布 → 生成回复草稿 → 人工确认后在酷安回复。
@@ -16,7 +22,7 @@
 
 本地模拟接收：
 
-    python tools/feedback/coolapk_bridge.py intake --event event.json --event-name workflow_dispatch --dry-run
+    COOLAPK_TARGET_FEED_ID=201 python tools/feedback/coolapk_bridge.py intake --event event.json --event-name workflow_dispatch --dry-run
 
 其中 event.json 内容示例：
 
@@ -30,7 +36,7 @@
 
 ## GitHub Actions 接入
 
-合并后在 GitHub Actions 中找到 Coolapk feedback intake (no Coolapk write access)，选择 Run workflow 并填写 feedback_json；或者由具备 repo 访问权限的已授权监听程序向 REST API 发出 POST /repos/ldohgfsdu/changjietu/dispatches 请求，其 JSON body 形如：
+合并并配置单帖 ID 后，在 GitHub Actions 中找到 Coolapk single-post feedback intake，选择 Run workflow 并填写 feedback_json；或者由具备 repo 访问权限的已授权监听程序向 REST API 发出 POST /repos/ldohgfsdu/changjietu/dispatches 请求，其 JSON body 形如：
 
     {
       "event_type": "coolapk-feedback",
@@ -43,7 +49,7 @@
       }
     }
 
-外部调用者应独立安全管理 GitHub Token，不得把令牌、会话 Cookie 或敏感字段写入仓库、Issue 或日志。external_id 必须对同一原始评论稳定且唯一，重试时不会重复建单。现有工作流只授予 issues:write、contents:read，不执行用户评论中的指令，不合并 PR，不自动发布。
+外部调用者应独立安全管理 GitHub Token，不得把令牌、会话 Cookie 或敏感字段写入仓库、Issue 或日志。external_id 必须对同一原始评论稳定且唯一，重试时不会重复建单。只允许与仓库变量 `COOLAPK_TARGET_FEED_ID` 完全一致的来源帖，其他帖子请求将拒绝。现有工作流只授予 issues:write、contents:read，不执行用户评论中的指令，不合并 PR，不自动发布。
 
 ## 回复草稿（不会自动发布到酷安）
 
