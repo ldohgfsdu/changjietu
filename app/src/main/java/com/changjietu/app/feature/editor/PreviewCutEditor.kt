@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -105,8 +107,26 @@ fun PreviewCutEditor(
             val aspect = bitmap.height.toFloat() / bitmap.width.coerceAtLeast(1).toFloat()
             val viewHeightDp = (maxWidth.value * aspect).coerceAtLeast(1f).coerceAtMost(MAX_VIEW_HEIGHT_DP)
             val viewHeightPx = with(density) { viewHeightDp.dp.toPx() }
-            val viewportHeightPx = with(density) { maxHeight.toPx() }
+            // The 52dp navigation row is above the scroll viewport, not inside it.
+            // Subtract it so initial and manual jumps center the actual cut line.
+            val viewportHeightPx = with(density) { (maxHeight - 52.dp).toPx() }.coerceAtLeast(1f)
             val handleSizePx = with(density) { HANDLE_SIZE.toPx() }
+
+            // On opening the editor, show the selected *cut line*, not the top of
+            // the source image (the old screen displayed "第 1/N 条" off-screen).
+            // Await a measured scroll extent before jumping so Compose does not
+            // clamp the first scrollTo() call to zero.
+            LaunchedEffect(sourceHeight, contentTop, cuts.size, viewHeightPx, viewportHeightPx) {
+                if (cuts.isEmpty()) return@LaunchedEffect
+                if (viewHeightPx > viewportHeightPx) {
+                    snapshotFlow { scrollState.maxValue }.first { it > 0 }
+                }
+                val index = selectedCutIndex.coerceIn(cuts.indices)
+                val yPx = (contentTop + cuts[index]).toFloat() / sourceHeight * viewHeightPx
+                val maxScroll = scrollState.maxValue.coerceAtLeast(0)
+                val target = (yPx - viewportHeightPx / 2f).roundToInt().coerceIn(0, maxScroll)
+                scrollState.scrollTo(target)
+            }
 
             Column(Modifier.fillMaxSize()) {
                 // 实机 v0.2.6 证明自定义箭头图标不可见。
