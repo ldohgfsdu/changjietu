@@ -340,17 +340,20 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         val generation = ++sourceGeneration
         reprocessJob?.cancel()
         reprocessJob = null
+        // Claim loading synchronously before HomeScreen / share navigation enters process.
+        // Otherwise process-death route recovery could mistake an in-flight new import
+        // for a restored destination with missing source data.
+        _homeState.value = HomeUiState.Loading("正在分析图片…")
+        _source.value = null
+        _editor.value = null
+        _overview.value = null
+        _manualCuts.value = null
+        _manualMargins.value = null
+        previewJob?.cancel()
+        previewJob = null
+        _previewPlan.value = null
+        _previewBitmap.value = PreviewBitmapState.Loading
         viewModelScope.launch {
-            _homeState.value = HomeUiState.Loading("正在分析图片…")
-            _source.value = null
-            _editor.value = null
-            _overview.value = null
-            _manualCuts.value = null
-            _manualMargins.value = null
-            previewJob?.cancel()
-            previewJob = null
-            _previewPlan.value = null
-            _previewBitmap.value = PreviewBitmapState.Loading
             try {
                 withContext(Dispatchers.IO) { checkReadable(uri) }
                 val info = withContext(Dispatchers.IO) { analyzeUri(uri) }

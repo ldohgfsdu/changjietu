@@ -16,7 +16,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.changjietu.app.core.NavigationRecovery
+import com.changjietu.app.core.RecoveryDestination
 import com.changjietu.app.core.ShareContract
+import com.changjietu.app.feature.editor.HomeUiState
 import com.changjietu.app.feature.editor.LongshotViewModel
 import com.changjietu.app.feature.editor.PreviewScreen
 import com.changjietu.app.feature.editor.ProcessScreen
@@ -53,6 +56,8 @@ class MainActivity : ComponentActivity() {
             ChangjietuTheme(darkTheme = darkTheme) {
                 val nav = rememberNavController()
                 val source by viewModel.source.collectAsStateWithLifecycle()
+                val homeState by viewModel.homeState.collectAsStateWithLifecycle()
+                val editor by viewModel.editor.collectAsStateWithLifecycle()
                 val pendingShareId by viewModel.pendingShareId.collectAsStateWithLifecycle()
                 val pendingProcessResultId by viewModel.pendingProcessResultId.collectAsStateWithLifecycle()
 
@@ -96,22 +101,59 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("process") {
-                        ProcessScreen(
-                            viewModel = viewModel,
-                            onBack = {
-                                nav.popBackStack("home", inclusive = false)
-                            },
+                        // Navigation back stack survives process recreation, whereas the
+                        // in-memory source may not. Never strand the user on an empty route.
+                        // Loading stays on this screen until the new import finishes.
+                        val recovery = NavigationRecovery.forProcess(
+                            hasSource = source != null,
+                            isOpeningSource = homeState is HomeUiState.Loading,
                         )
+                        LaunchedEffect(recovery) {
+                            if (recovery == RecoveryDestination.HOME) {
+                                nav.navigate("home") {
+                                    popUpTo("home") { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                        if (recovery == RecoveryDestination.STAY) {
+                            ProcessScreen(
+                                viewModel = viewModel,
+                                onBack = {
+                                    nav.popBackStack("home", inclusive = false)
+                                },
+                            )
+                        }
                     }
                     composable("preview") {
-                        PreviewScreen(
-                            viewModel = viewModel,
-                            onBack = {
-                                if (!nav.popBackStack()) {
-                                    nav.navigate("home")
-                                }
-                            },
+                        val recovery = NavigationRecovery.forPreview(
+                            hasRenderedSlices = editor?.slices?.isNotEmpty() == true,
+                            hasSource = source != null,
+                            isOpeningSource = homeState is HomeUiState.Loading,
                         )
+                        LaunchedEffect(recovery) {
+                            when (recovery) {
+                                RecoveryDestination.HOME -> nav.navigate("home") {
+                                    popUpTo("home") { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                                RecoveryDestination.PROCESS -> nav.navigate("process") {
+                                    popUpTo("home") { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                                RecoveryDestination.STAY -> Unit
+                            }
+                        }
+                        if (recovery == RecoveryDestination.STAY) {
+                            PreviewScreen(
+                                viewModel = viewModel,
+                                onBack = {
+                                    if (!nav.popBackStack()) {
+                                        nav.navigate("home")
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
