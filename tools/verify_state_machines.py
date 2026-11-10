@@ -32,12 +32,10 @@ def verify_import_claims_loading_before_launch(code: str) -> bool:
         return False
     block = start[1].split("private fun tryPersistRead(", 1)[0]
     loading = block.find('_homeState.value = HomeUiState.Loading("正在分析图片…")')
+    source_reset = block.find("_source.value = null")
+    editor_reset = block.find("_editor.value = null")
     launch = block.find("viewModelScope.launch {")
-    return (
-        0 <= loading < launch
-        and block.find("_source.value = null") < launch
-        and block.find("_editor.value = null") < launch
-    )
+    return 0 <= loading < launch and 0 <= source_reset < launch and 0 <= editor_reset < launch
 
 def main() -> None:
     data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
