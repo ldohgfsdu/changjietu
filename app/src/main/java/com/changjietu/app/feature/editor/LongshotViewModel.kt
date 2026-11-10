@@ -447,16 +447,18 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         val s = _settings.value
         val generation = sourceGeneration
         _overview.value = null
+        // 同步进入 processing：第二次点击必须在启动协程之前看到忙碌状态，
+        // 避免同一源被重复并发编码，仍沿用现有 sourceGeneration 防旧结果回写。
+        _editor.value = EditorState(
+            source = srcInfo,
+            settings = s,
+            cutEnds = emptyList(),
+            contentHeight = 0,
+            contentWidth = 0,
+            isProcessing = true,
+            statusMessage = "正在切片…",
+        )
         viewModelScope.launch {
-            _editor.value = EditorState(
-                source = srcInfo,
-                settings = s,
-                cutEnds = emptyList(),
-                contentHeight = 0,
-                contentWidth = 0,
-                isProcessing = true,
-                statusMessage = "正在切片…",
-            )
             try {
                 val state = withContext(Dispatchers.IO) { processInternal(srcInfo, s) }
                 if (generation != sourceGeneration) return@launch
