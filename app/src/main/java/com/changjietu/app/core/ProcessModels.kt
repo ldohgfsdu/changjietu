@@ -36,8 +36,10 @@ data class SourceInfo(
     val columnEnergy: FloatArray = FloatArray(0),
     /** 源图行能量（源坐标，仅 source-invariant，不随设置变化）。 */
     val rowEnergy: FloatArray = FloatArray(0),
-    /** OCR-protected image rows, using original full-image Y coordinates. */
+    /** Union of local OCR and visual geometry (original source-image Y). */
     val protectedSourceRows: List<IntRange> = emptyList(),
+    /** Only actual visual regions, never OCR text rows: used for flexible slicing. */
+    val visualSourceRows: List<IntRange> = emptyList(),
 )
 
 data class EditorState(

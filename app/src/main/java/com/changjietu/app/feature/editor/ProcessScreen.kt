@@ -97,6 +97,12 @@ fun ProcessScreen(
     val displaySpec = viewModel.displaySpec
     val sliceCount = previewPlan?.sliceCount ?: src?.estimatedSlices ?: 0
     val processing = editor?.isProcessing == true
+    val extendedVisualSlices = remember(previewPlan, settings.targetHeight, settings.overlap) {
+        val p = previewPlan
+        p != null && SplitPointDetector.rangesFromCutEnds(
+            p.contentHeight, p.cutEnds, settings.overlap,
+        ).any { it.last - it.first + 1 > settings.targetHeight }
+    }
     // A cut in a table or text block cannot be promised safe without an
     // identified gap. Surface the uncertainty before the user exports slices.
     val uncertainCuts = remember(previewPlan, src, settings.avoidTextLines) {
@@ -215,8 +221,12 @@ fun ProcessScreen(
                     }
                 }
                 TextScanPhase.READY -> Text(
-                    "已检测 ${textScan.regions} 个视觉区域、${textScan.lines} 行文字。" +
-                        (if (textScan.partial) "部分检测失败，请检查切线。" else "切线将优先避开检测区域。"),
+                    "已标记 ${textScan.regions} 个视觉区域、${textScan.lines} 行文字。" +
+                        when {
+                            textScan.partial -> "部分检测失败，切点可能不安全。"
+                            textScan.regions == 0 -> "未检出视觉内容块，图片和表格可能仍被切开。"
+                            else -> "无法保证所有图片、图表完整，请检查切线。"
+                        },
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )
@@ -231,6 +241,14 @@ fun ProcessScreen(
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )
                 TextScanPhase.IDLE -> Unit
+            }
+
+            if (extendedVisualSlices) {
+                Text(
+                    "为避开检测到的图表，部分切片已延长至超过目标高度（有安全上限）。",
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                )
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
