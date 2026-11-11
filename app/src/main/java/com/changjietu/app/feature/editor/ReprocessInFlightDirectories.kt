@@ -30,4 +30,14 @@ internal object ReprocessInFlightDirectories {
         val candidate = path.absoluteFile.toPath().normalize()
         return writers.keys.any { candidate.startsWith(it.toPath().normalize()) }
     }
+
+    /**
+     * Hold the writer registry lock from the protection check through the deletion.
+     * A newly starting encoder cannot register a directory in the gap.
+     */
+    @Synchronized
+    fun pruneIfUnprotected(path: File, delete: () -> Boolean): Boolean {
+        if (isProtected(path)) return false
+        return delete()
+    }
 }
