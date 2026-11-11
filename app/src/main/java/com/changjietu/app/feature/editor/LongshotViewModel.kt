@@ -593,6 +593,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             ?.sortedByDescending { it.name }
             ?: return
         entries.forEachIndexed { rank, entry ->
+            if (ReprocessInFlightDirectories.isProtected(entry)) return@forEachIndexed
             if (visible.any { fileRetention.covers(entry, it) }) return@forEachIndexed
             fileRetention.prune(entry, rank, keep)
         }
@@ -719,7 +720,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                             overlap = ed.settings.overlap,
                             ranges = ranges,
                         )
-                        val outDir = ReprocessOutputDirectory.create(File(app.cacheDir, "slices"))
+                        val outDir = ReprocessInFlightDirectories.create(File(app.cacheDir, "slices"))
                         outputDirectory = outDir
                         cleanupOldEntries(File(app.cacheDir, "slices"), keep = 3, protect = outDir)
                         val slices = ImageSplitter.splitToFiles(
@@ -778,7 +779,11 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             } finally {
-                ReprocessOutputLifecycle.cleanupIfUncommitted(outputDirectory, committed)
+                try {
+                    ReprocessOutputLifecycle.cleanupIfUncommitted(outputDirectory, committed)
+                } finally {
+                    outputDirectory?.let(ReprocessInFlightDirectories::release)
+                }
             }
         }
     }
