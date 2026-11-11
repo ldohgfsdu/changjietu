@@ -717,7 +717,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                             overlap = ed.settings.overlap,
                             ranges = ranges,
                         )
-                        val outDir = File(app.cacheDir, "slices/${System.currentTimeMillis()}").also { it.mkdirs() }
+                        val outDir = ReprocessOutputDirectory.create(File(app.cacheDir, "slices"))
                         cleanupOldEntries(File(app.cacheDir, "slices"), keep = 3, protect = outDir)
                         val slices = ImageSplitter.splitToFiles(
                             SplitRequest(
