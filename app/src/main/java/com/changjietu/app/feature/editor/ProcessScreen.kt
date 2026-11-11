@@ -205,8 +205,8 @@ fun ProcessScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            if (textScan.total == 0) "准备本机文字识别…" else
-                                "本机识别文字中 ${textScan.completed}/${textScan.total}",
+                            if (textScan.total == 0) "准备${textScan.stage}…" else
+                                "${textScan.stage} ${textScan.completed}/${textScan.total}",
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceSecondary,
                             modifier = Modifier.weight(1f),
@@ -215,17 +215,18 @@ fun ProcessScreen(
                     }
                 }
                 TextScanPhase.READY -> Text(
-                    "已在本机标记 ${textScan.lines} 行文字，切线会优先避开文字区域",
+                    "已检测 ${textScan.regions} 个视觉区域、${textScan.lines} 行文字。" +
+                        (if (textScan.partial) "部分检测失败，请检查切线。" else "切线将优先避开检测区域。"),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )
                 TextScanPhase.FAILED -> Text(
-                    "文字识别暂不可用，已回退传统切点；生成前请检查红色风险切线",
+                    "内容检测暂不可用，已回退传统切点；请检查风险切线",
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )
                 TextScanPhase.SKIPPED -> Text(
-                    "本次未使用文字检测，请检查切线",
+                    "本次未使用内容检测，请检查切线",
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )
@@ -308,8 +309,8 @@ fun ProcessScreen(
                 },
             )
             SuperSwitch(
-                title = "本机文字识别避让",
-                summary = "仅检测文字位置，不上传截图；遇到图表仍建议检查",
+                title = "本机内容识别避让",
+                summary = "本地识别文字和视觉块，不上传截图；复杂图表仍需检查",
                 checked = settings.avoidTextLines,
                 onCheckedChange = { enabled ->
                     viewModel.updateSettings { it.copy(avoidTextLines = enabled) }
