@@ -59,4 +59,33 @@ class ExportFileRetentionTest {
         now += 25L * 3600_000
         assertTrue(guard.canPrune(dir, 5, 3))
     }
+    @Test fun pruneAndLeaseAcquisitionMustBeAtomic() {
+        val now = 8_000_000_000L
+        val guard = ExportFileRetention(clock = { now })
+        val dir = tmp.newFolder("race")
+        val file = File(dir, "01.jpg").apply { writeText("sample") }
+        dir.setLastModified(now - 48L * 3600_000)
+        val checked = java.util.concurrent.CountDownLatch(1)
+        val leaseReady = java.util.concurrent.CountDownLatch(1)
+        val lease = arrayOfNulls<AutoCloseable>(1)
+        val reader = Thread {
+            checked.await()
+            lease[0] = guard.acquire(listOf(file))
+            leaseReady.countDown()
+        }
+        reader.start()
+        try {
+            // The old check-then-delete path permits a new lease between these operations.
+            assertFalse(guard.prune(dir, 9, 3) {
+                checked.countDown()
+                assertTrue(leaseReady.await(3, java.util.concurrent.TimeUnit.SECONDS))
+            })
+            assertTrue(file.exists())
+        } finally {
+            checked.countDown()
+            reader.join(3000)
+            lease[0]?.close()
+        }
+    }
+
 }
