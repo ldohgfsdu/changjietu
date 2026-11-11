@@ -58,6 +58,7 @@ import kotlin.math.roundToInt
 private const val MAX_VIEW_HEIGHT_DP = 6000f
 
 private val HANDLE_SIZE = 38.dp
+private val HANDLE_TOUCH_SIZE = 48.dp // retain 38dp visual circle
 private val CutLineColor = Color(0xFF3482FF)
 private val UncertainLineColor = Color(0xFFFF5454)
 private val CropLineColor = Color(0xFFE6A23C)
@@ -99,7 +100,7 @@ fun PreviewCutEditor(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            "拖 ⇅ 调整切点 · 长按长图新增切入点",
+            "拖动手柄调整切线，长按图片新增切点",
             color = MiuixTheme.colorScheme.onSurfaceSecondary,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             fontSize = 12.sp,
@@ -120,7 +121,7 @@ fun PreviewCutEditor(
             // The 52dp navigation row is above the scroll viewport, not inside it.
             // Subtract it so initial and manual jumps center the actual cut line.
             val viewportHeightPx = with(density) { (maxHeight - 52.dp).toPx() }.coerceAtLeast(1f)
-            val handleSizePx = with(density) { HANDLE_SIZE.toPx() }
+            val handleSizePx = with(density) { HANDLE_TOUCH_SIZE.toPx() }
 
             // On opening the editor, show the selected *cut line*, not the top of
             // the source image (the old screen displayed "第 1/N 条" off-screen).
@@ -179,7 +180,7 @@ fun PreviewCutEditor(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条 · 定位",
+                            if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条（定位）",
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         )
@@ -295,9 +296,7 @@ fun PreviewCutEditor(
                                         .coerceIn(0f, (viewHeightPx - handleSizePx).coerceAtLeast(0f))
                                     IntOffset(0, top.roundToInt())
                                 }
-                                .size(HANDLE_SIZE)
-                                .border(if (selected) 3.dp else 2.dp, Color.White, CircleShape)
-                                .background(if (end in uncertainCutEnds) UncertainLineColor else CutLineColor, CircleShape)
+                                .size(HANDLE_TOUCH_SIZE)
                                 .pointerInput(index, contentTop, sourceHeight, viewHeightPx) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(
@@ -318,12 +317,23 @@ fun PreviewCutEditor(
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                MiuixIcons.ArrowUpDown,
-                                contentDescription = "拖动调整切点",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp),
-                            )
+                            Box(
+                                Modifier
+                                    .size(HANDLE_SIZE)
+                                    .border(if (selected) 3.dp else 2.dp, Color.White, CircleShape)
+                                    .background(
+                                        if (end in uncertainCutEnds) UncertainLineColor else CutLineColor,
+                                        CircleShape,
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    MiuixIcons.ArrowUpDown,
+                                    contentDescription = "拖动调整切点",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -339,7 +349,7 @@ fun PreviewCutEditor(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "已手动调整 · 恢复自动重回自动",
+                    "已手动调整，可恢复为自动切线",
                     fontSize = 12.sp,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )

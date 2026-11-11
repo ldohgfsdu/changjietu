@@ -44,12 +44,21 @@
 
 ---
 
+## v0.2.16：切线手势命中与无效重算修复
+
+- 总览和精细页实际拖拽命中区从 38dp 扩大到 48dp，视觉圆点仍为 38dp。
+- 总览切线的原位点击/取消手势不再触发无意义的重切与 IO；精细页维持拖动零 IO 的既有行为。
+- 更新 UI 文案、静态手势验收约束、v0.2.16 中文更新日志。
+- 原有图像实际像素坐标和分享链路不变；需使用真实设备进行拖拽、滚动、方向变化验收。
+
+---
+
 ## 1. 当前版本
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.15** | `app/build.gradle.kts` |
-| versionCode | **17** | 同上 |
+| versionName | **0.2.16** | `app/build.gradle.kts` |
+| versionCode | **18** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 

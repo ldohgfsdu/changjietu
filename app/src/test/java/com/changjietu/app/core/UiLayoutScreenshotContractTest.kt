@@ -40,6 +40,21 @@ class UiLayoutScreenshotContractTest {
         assertFalse(nav.contains("TextButton("))
     }
 
+    @Test fun cutHandlesExpose48DpTouchAreaWithUnchanged38DpArtwork() {
+        for (file in listOf("feature/editor/OverviewEditor.kt", "feature/editor/PreviewCutEditor.kt")) {
+            val s = read(file)
+            assertTrue("$file: visual grip must remain 38dp", s.contains("private val HANDLE_SIZE = 38.dp"))
+            assertTrue("$file: touch area must be 48dp", s.contains("private val HANDLE_TOUCH_SIZE = 48.dp"))
+            assertTrue(s.contains("HANDLE_TOUCH_SIZE.toPx()"))
+            assertTrue(s.contains(".size(HANDLE_TOUCH_SIZE)"))
+            assertTrue(s.contains(".size(HANDLE_SIZE)"))
+        }
+        val overview = read("feature/editor/OverviewEditor.kt")
+        assertTrue("Cancelled gestures must not recompute", overview.contains("if (completed &&"))
+        assertTrue("A tap cannot recompute slices", overview.contains(").roundToInt() != base"))
+        assertTrue("Actual movement remains tracked during drag", overview.contains("onDelta(base, accumulated / viewHeightPx * contentHeight)"))
+    }
+
     @Test fun resultPageReservesMajorityOfHeightForSliceCards() {
         val result = read("feature/editor/PreviewScreen.kt")
         assertTrue(result.contains("modifier = Modifier.fillMaxWidth().weight(0.42f)"))

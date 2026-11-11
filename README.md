@@ -13,6 +13,14 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 5. **系统分享入口**，相册一点分享即可处理
 6. **分块解码**，避免超长图 OOM
 
+## v0.2.16 切线手势体验
+
+- 长图总览和精细切线编辑页的手柄实际触控区域提升至 48dp；圆点视觉尺寸保持 38dp，避免更拥挤。
+- 改进手势释放行为：在总览页单击切线或拖动无有效坐标变化时不触发重新编码，取消手势不应提交重切。
+- 简化精细编辑提示文案，不再使用不必要的装饰分隔符。
+- 功能和测试细节：[v0.2.16 Release Notes](docs/releases/v0.2.16.md)。
+- 尚需 Android 真机实测滚动冲突、60/120Hz 跟手与屏幕旋转；静态交互契约测试并不等于真实设备验收。
+
 ## v0.2.15 保存与分享可靠性
 
 - 保存相册和打包 ZIP 时保留选中切片，防止并发重新切片时缓存被自动清理。
@@ -35,7 +43,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.15`（versionCode 17；发布状态以 GitHub Releases 为准）
+- 版本：`0.2.16`（versionCode 18；发布状态以 GitHub Releases 为准）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
