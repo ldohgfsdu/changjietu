@@ -959,18 +959,25 @@
       "files": [
         "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt",
         "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt",
-        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt"
+        "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt",
+        "app/src/main/java/com/changjietu/app/feature/export/ExportFileRetention.kt"
       ],
       "anchors": {
         "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
           "private fun cleanupOldEntries(",
-          "entries.drop(keep).forEach"
+          "fileRetention.canPrune(entry, rank, keep)"
         ],
         "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt": [
           "val part = File("
         ],
         "app/src/main/java/com/changjietu/app/feature/export/ExportRepository.kt": [
           "slice.file"
+        ],
+        "app/src/main/java/com/changjietu/app/feature/export/ExportFileRetention.kt": [
+          "internal class ExportFileRetention(",
+          "fun acquire(",
+          "fun markShared(",
+          "fun canPrune("
         ]
       },
       "states": [
@@ -988,8 +995,8 @@
         "expiry"
       ],
       "required_invariant": "A referenced file must survive active export and sharing grants; deleting by filename count alone cannot establish safety.",
-      "verification": "UNVERIFIED: no lease, TTL or lifecycle contract for external reader",
-      "decision": "model_first_then_fix"
+      "verification": "ExportFileRetentionTest (4 source-level lifecycle regressions), CI formal source anchors; Android receiver timing pending",
+      "decision": "bounded_24h_grace_and_inflight_lease_device_pending"
     },
     {
       "id": "RES-02",

@@ -20,6 +20,7 @@ import com.changjietu.app.core.UriAccessSource
 import com.changjietu.app.core.UriPersistencePolicy
 import com.changjietu.app.core.ZipNameSanitizer
 import com.changjietu.app.feature.export.ExportRepository
+import com.changjietu.app.feature.export.ExportFileRetention
 import com.changjietu.app.feature.export.OrderedSlices
 import com.changjietu.app.feature.export.SaveSummary
 import com.changjietu.app.feature.export.SavedZip
@@ -92,6 +93,7 @@ sealed interface PreviewBitmapState {
 class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     private val exportRepo = ExportRepository(app)
+    private val fileRetention = ExportFileRetention()
     private val recentStore = RecentStore(app)
 
     /** 当前设备真实屏幕像素；切片默认高度取其长边，保证单张不超过手机屏幕。 */
@@ -585,11 +587,15 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun cleanupOldEntries(root: File, keep: Int, protect: File?) {
         if (!root.exists()) return
+        val visible = _editor.value?.slices?.map { it.file }.orEmpty()
         val entries = root.listFiles()
             ?.filter { it != protect }
             ?.sortedByDescending { it.name }
             ?: return
-        entries.drop(keep).forEach { it.deleteRecursively() }
+        entries.forEachIndexed { rank, entry ->
+            if (visible.any { fileRetention.covers(entry, it) }) return@forEachIndexed
+            if (fileRetention.canPrune(entry, rank, keep)) entry.deleteRecursively()
+        }
     }
 
     fun mergeSliceWithNext(index: Int) {
@@ -786,15 +792,20 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             onResult(Result.failure(IllegalStateException(ProcessErrorMessages.NO_SELECTION)))
             return
         }
+        val lease = fileRetention.acquire(slices.map { it.file })
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { exportRepo.saveToGallery(slices) }
-            onResult(result)
-            result.onSuccess { summary ->
-                _editor.update {
-                    it?.copy(
-                        statusMessage = "已保存 ${summary.saved} 张到相册 Pictures/${ExportRepository.ALBUM_NAME}",
-                    )
+            try {
+                val result = withContext(Dispatchers.IO) { exportRepo.saveToGallery(slices) }
+                onResult(result)
+                result.onSuccess { summary ->
+                    _editor.update {
+                        it?.copy(
+                            statusMessage = "已保存 ${summary.saved} 张到相册 Pictures/${ExportRepository.ALBUM_NAME}",
+                        )
+                    }
                 }
+            } finally {
+                lease.close()
             }
         }
     }
@@ -816,25 +827,30 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             onResult(Result.failure(IllegalStateException(ProcessErrorMessages.NO_SELECTION)))
             return
         }
+        val lease = fileRetention.acquire(slices.map { it.file })
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    val app = getApplication<Application>()
-                    val root = File(app.cacheDir, "zip").also { it.mkdirs() }
-                    cleanupOldEntries(root, keep = 3, protect = null)
-                    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                    val zip = File(root, "longshot_$stamp.zip")
-                    val count = SliceZipper.zip(slices, zip)
-                    check(count > 0) { "没有可打包的切片" }
-                    val displayName = ZipNameSanitizer.sanitize(requestedName, "longshot_$stamp")
-                    exportRepo.saveZipToDownloads(zip, displayName).getOrThrow()
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val app = getApplication<Application>()
+                        val root = File(app.cacheDir, "zip").also { it.mkdirs() }
+                        cleanupOldEntries(root, keep = 3, protect = null)
+                        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+                        val zip = File(root, "longshot_$stamp.zip")
+                        val count = SliceZipper.zip(slices, zip)
+                        check(count > 0) { "没有可打包的切片" }
+                        val displayName = ZipNameSanitizer.sanitize(requestedName, "longshot_$stamp")
+                        exportRepo.saveZipToDownloads(zip, displayName).getOrThrow()
+                    }
                 }
-            }
-            onResult(result)
-            result.onSuccess { saved ->
-                _editor.update {
-                    it?.copy(statusMessage = "已打包 ${slices.size} 张：${saved.locationLabel}")
+                onResult(result)
+                result.onSuccess { saved ->
+                    _editor.update {
+                        it?.copy(statusMessage = "已打包 ${slices.size} 张：${saved.locationLabel}")
+                    }
                 }
+            } finally {
+                lease.close()
             }
         }
     }
@@ -842,10 +858,16 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     fun shareIntent(): Intent? {
         val slices = selectedSlices()
         if (slices.isEmpty()) return null
-        return exportRepo.buildShareIntent(slices)
+        val intent = exportRepo.buildShareIntent(slices)
+        fileRetention.markShared(slices.map { it.file })
+        return intent
     }
 
-    fun shareZipIntent(zipFile: File): Intent = exportRepo.buildZipShareIntent(zipFile)
+    fun shareZipIntent(zipFile: File): Intent {
+        val intent = exportRepo.buildZipShareIntent(zipFile)
+        fileRetention.markShared(listOf(zipFile))
+        return intent
+    }
 
     fun clearSource() {
         sourceGeneration++

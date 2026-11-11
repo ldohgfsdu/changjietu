@@ -48,7 +48,7 @@ Adopted covenant: 1.0.0
 Kotlin · Jetpack Compose · Material 3 · `BitmapRegionDecoder` 分块解码
 
 - applicationId：`com.changjietu.app`
-- 当前开发版本：**0.2.14**（versionCode 16；正式发布状态见 Releases）
+- 当前开发版本：**0.2.15**（versionCode 17；正式发布状态见 Releases）
 - 模块：`:app`（单 module，包结构按 GOAL.md 建议工程结构）
 
 ## 构建与 APK
@@ -92,3 +92,8 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
 - **禁止整图 BitmapFactory.decode 主路径**（见架构红线 2）
 - **禁止引入云端/OCR/OpenCV**（见架构红线 3）
 - 改完要验证：`./gradlew :app:assembleDebug` 与相关 unit test
+
+
+## 每次正式 APK 必须记录功能变化
+
+每个 versionName 必须提交 `docs/releases/v<version>.md`，包含「## 新增」「## 修复」「## 验证」「## 已知限制」。Release 工作流会检查这些内容并补入实际 APK 字节数和 SHA-256。不能只写 CI 成功、不能虚报真机已验证；发布件必须可覆盖安装且签名一致。
