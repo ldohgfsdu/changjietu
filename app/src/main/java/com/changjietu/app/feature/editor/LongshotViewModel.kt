@@ -30,6 +30,7 @@ import com.changjietu.app.image.analysis.LocalTextLineScanner
 import com.changjietu.app.image.analysis.LocalVisualBlockScanner
 import com.changjietu.app.image.analysis.VisualBlockScanResult
 import com.changjietu.app.image.analysis.LocalTextScanResult
+import com.changjietu.app.image.analysis.VisualSeamPlanner
 import com.changjietu.app.image.analysis.MarginDetector
 import com.changjietu.app.image.analysis.Margins
 import com.changjietu.app.image.analysis.QualityAnalyzer
@@ -88,6 +89,14 @@ data class PreviewPlan(
 )
 
 enum class TextScanPhase { IDLE, RUNNING, READY, FAILED, SKIPPED }
+
+private data class ContentGeometryResult(
+    val protectedRows: List<IntRange>,
+    val visualRows: List<IntRange>,
+    val lines: Int,
+    val regions: Int,
+    val partial: Boolean,
+)
 
 data class TextScanStatus(
     val phase: TextScanPhase = TextScanPhase.IDLE,
@@ -267,28 +276,31 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                         if (visual == null && text == null) {
                             error("Both local vision and OCR analysis failed")
                         }
-                        Triple(
-                            LocalTextLineScanner.mergeRows(
+                        ContentGeometryResult(
+                            protectedRows = LocalTextLineScanner.mergeRows(
                                 (visual?.protectedSourceRows ?: emptyList()) +
                                     (text?.protectedSourceRows ?: emptyList())
                             ),
-                            (text?.detectedLines ?: 0) to (visual?.detectedRegions ?: 0),
-                            visual == null || text == null,
+                            visualRows = visual?.protectedSourceRows ?: emptyList(),
+                            lines = text?.detectedLines ?: 0,
+                            regions = visual?.detectedRegions ?: 0,
+                            partial = visual == null || text == null,
                         )
                     }
                 }
                 if (generation != sourceGeneration || epoch != textScanEpoch) return@launch
                 val updated = (_source.value ?: return@launch).copy(
-                    protectedSourceRows = result.first,
+                    protectedSourceRows = result.protectedRows,
+                    visualSourceRows = result.visualRows,
                 )
                 _source.value = updated
                 publishPreviewPlan(updated, _settings.value)
                 _textScan.value = TextScanStatus(
                     phase = TextScanPhase.READY,
-                    lines = result.second.first,
-                    regions = result.second.second,
+                    lines = result.lines,
+                    regions = result.regions,
                     stage = "识别完成",
-                    partial = result.third,
+                    partial = result.partial,
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -665,11 +677,14 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     FloatArray(contentH) { 1f }
                 }
-                SplitPointDetector.plan(
+                VisualSeamPlanner.plan(
                     contentHeight = contentH,
                     targetSliceHeight = s.targetHeight,
                     overlap = s.overlap,
                     rowEnergy = contentEnergy,
+                    visualRows = if (s.avoidTextLines) ContentProtectedRows.inContent(
+                        srcInfo.visualSourceRows, margins.top, contentH,
+                    ) else emptyList(),
                     protectedRows = if (s.avoidTextLines) ContentProtectedRows.inContent(
                         srcInfo.protectedSourceRows, margins.top, contentH,
                     ) else emptyList(),
@@ -1037,11 +1052,14 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             FloatArray(contentH) { 1f }
         }
-        val plan = SplitPointDetector.plan(
+        val plan = VisualSeamPlanner.plan(
             contentHeight = contentH,
             targetSliceHeight = settings.targetHeight,
             overlap = settings.overlap,
             rowEnergy = contentEnergy,
+            visualRows = if (settings.avoidTextLines) ContentProtectedRows.inContent(
+                src.visualSourceRows, margins.top, contentH,
+            ) else emptyList(),
             protectedRows = if (settings.avoidTextLines) ContentProtectedRows.inContent(
                 src.protectedSourceRows, margins.top, contentH,
             ) else emptyList(),
