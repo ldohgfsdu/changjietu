@@ -11,7 +11,9 @@ class CutViewportContractTest {
         val source = listOf(File(relative), File("app", relative)).first { it.isFile }.readText()
         assertFalse(source.contains("if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds) {"))
         assertFalse(source.contains("if (manualActive) {"))
-        assertTrue(source.contains("height(48.dp)"))
-        assertTrue(source.contains("height(56.dp)"))
+        assertTrue(source.contains("Box(Modifier.fillMaxWidth().height(48.dp)"))
+        assertTrue(source.contains("Modifier.fillMaxWidth().height(56.dp)"))
+        assertTrue(source.contains("LaunchedEffect(sourceHeight, contentTop, cuts.size, viewHeightPx)"))
+        assertFalse(source.contains("LaunchedEffect(sourceHeight, contentTop, cuts.size, viewHeightPx, viewportHeightPx)"))
     }
 }
