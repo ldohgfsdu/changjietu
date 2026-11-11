@@ -53,6 +53,21 @@ class VisualBlockHeuristicsTest {
     }
 
     @Test
+    fun persistent_timeline_line_does_not_join_separate_post_cards() {
+        val image = SyntheticImage()
+        image.rect(20, 30, 2, 570) // timeline spine
+        image.rect(22, 100, 155, 115, 0xffbbbbbb.toInt())
+        image.rect(22, 340, 155, 115, 0xffbbbbbb.toInt())
+        val regions = image.detect()
+        assertTrue("First card missing: $regions",
+            regions.any { it.top <= 100 && it.bottom >= 214 && it.bottom < 280 })
+        assertTrue("Second card missing: $regions",
+            regions.any { it.top <= 340 && it.bottom >= 454 && it.top > 290 })
+        assertFalse("Timeline unexpectedly joined unrelated cards",
+            regions.any { it.top <= 100 && it.bottom >= 454 })
+    }
+
+    @Test
     fun uniform_background_and_thin_rule_do_not_create_false_blocks() {
         val image = SyntheticImage()
         assertEquals(emptyList<VisualBlockHeuristics.Box>(), image.detect())
