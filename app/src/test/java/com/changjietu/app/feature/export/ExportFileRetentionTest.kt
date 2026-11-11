@@ -52,7 +52,7 @@ class ExportFileRetentionTest {
         val dir = tmp.newFolder("fresh")
         dir.setLastModified(now)
         val guard = ExportFileRetention(clock = { now })
-        val lease = guard.acquire(listOf(File(dir, "slice.jpg")))
+        val lease = guard.acquire(listOf(File(dir, "slice.jpg").apply { writeText("sample") }))
         lease.close()
         lease.close()
         assertFalse(guard.canPrune(dir, 5, 3))
