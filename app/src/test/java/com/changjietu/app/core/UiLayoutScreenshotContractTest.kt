@@ -40,6 +40,22 @@ class UiLayoutScreenshotContractTest {
         assertFalse(nav.contains("TextButton("))
     }
 
+    @Test fun bothEditorsHaveLargeTouchTargetButOriginalVisualDiameter() {
+        val main = read("feature/editor/OverviewEditor.kt")
+        val precise = read("feature/editor/PreviewCutEditor.kt")
+        for (source in listOf(main, precise)) {
+            assertTrue(source.contains("private val HANDLE_SIZE = 38.dp"))
+            assertTrue(source.contains("private val HANDLE_TOUCH_SIZE = 48.dp"))
+            assertTrue(source.contains(".size(HANDLE_TOUCH_SIZE)"))
+            assertTrue(source.contains("HANDLE_TOUCH_SIZE.toPx()"))
+            assertTrue(source.contains("Modifier.size(HANDLE_SIZE)"))
+            assertTrue(source.contains("val completed = verticalDrag(down.id)"))
+        }
+        assertTrue(main.contains("CutDragGeometry.hasChanged"))
+        assertTrue(main.contains("if (!completed && accumulated != 0f) onDelta(base, 0f)"))
+        assertTrue(precise.contains("if (!completed && accumulated != 0f) onPreviewCut(index, base)"))
+    }
+
     @Test fun resultPageReservesMajorityOfHeightForSliceCards() {
         val result = read("feature/editor/PreviewScreen.kt")
         assertTrue(result.contains("modifier = Modifier.fillMaxWidth().weight(0.42f)"))

@@ -60,6 +60,7 @@ private const val MAX_VIEW_HEIGHT_DP = 6000f
 
 /** 切点/裁切手柄直径。 */
 private val HANDLE_SIZE = 38.dp
+private val HANDLE_TOUCH_SIZE = 48.dp
 
 private val CutLineColor = Color(0xFF3482FF)
 private val CropLineColor = Color(0xFFFFB95C)
@@ -139,7 +140,7 @@ fun OverviewEditor(
                 .coerceAtLeast(1f)
                 .coerceAtMost(MAX_VIEW_HEIGHT_DP)
             val viewHeightPx = with(density) { viewHeightDp.dp.toPx() }
-            val handleSizePx = with(density) { HANDLE_SIZE.toPx() }
+            val handleSizePx = with(density) { HANDLE_TOUCH_SIZE.toPx() }
             val scrollState = rememberScrollState()
 
             Box(
@@ -416,9 +417,8 @@ private fun BoxScope.VerticalDragHandle(
                     .coerceIn(0f, (viewHeightPx - handleSizePx).coerceAtLeast(0f))
                 IntOffset(0, top.roundToInt())
             }
-            .size(HANDLE_SIZE)
-            .border(2.dp, Color.White, CircleShape)
-            .background(color, CircleShape)
+            // A 48dp hit target surrounds the existing 38dp visible dot.
+            .size(HANDLE_TOUCH_SIZE)
             .pointerInput(contentHeight, viewHeightPx, enabled) {
                 if (!enabled) return@pointerInput
                 // 在 Initial 阶段吃掉按下，避免外层纵向滚动把切点拖动当成「拖动预览」。
@@ -430,26 +430,38 @@ private fun BoxScope.VerticalDragHandle(
                     down.consume()
                     var accumulated = 0f
                     val base = valueState.value
-                    verticalDrag(down.id) { change ->
+                    val completed = verticalDrag(down.id) { change ->
                         val dy = change.position.y - change.previousPosition.y
                         change.consume()
                         accumulated += dy
                         onDelta(base, accumulated / viewHeightPx * contentHeight)
                     }
-                    onEnd()
+                    // A tap, a canceled drag, and a drag ending at its origin
+                    // must not trigger an unnecessary re-encode.
+                    if (!completed && accumulated != 0f) onDelta(base, 0f)
+                    if (completed && CutDragGeometry.hasChanged(base, accumulated, viewHeightPx, contentHeight)) {
+                        onEnd()
+                    }
                 }
             },
         contentAlignment = Alignment.Center,
     ) {
-        if (icon) {
-            Icon(
-                MiuixIcons.ArrowUpDown,
-                contentDescription = "拖动调整切点",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
-        } else {
-            Text(label, color = Color.White, fontSize = 11.sp)
+        Box(
+            Modifier.size(HANDLE_SIZE)
+                .border(2.dp, Color.White, CircleShape)
+                .background(color, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (icon) {
+                Icon(
+                    MiuixIcons.ArrowUpDown,
+                    contentDescription = "拖动调整切点",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                Text(label, color = Color.White, fontSize = 11.sp)
+            }
         }
     }
 }
