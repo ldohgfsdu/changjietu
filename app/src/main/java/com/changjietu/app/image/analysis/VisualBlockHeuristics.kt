@@ -80,22 +80,27 @@ internal object VisualBlockHeuristics {
     }
 
     private fun background(p: IntArray, width: Int, height: Int): Int {
-        val insetX = (width / 50).coerceIn(0, 8)
-        val insetY = (height / 50).coerceIn(0, 8)
-        val corners = intArrayOf(
-            p[insetY * width + insetX],
-            p[insetY * width + width - 1 - insetX],
-            p[(height - 1 - insetY) * width + insetX],
-            p[(height - 1 - insetY) * width + width - 1 - insetX],
-        )
-        var best = 0
-        var distance = Int.MAX_VALUE
-        for (i in corners.indices) for (j in corners.indices) {
-            if (i == j) continue
-            val d = colorDistance(corners[i], corners[j])
-            if (d < distance) { best = i; distance = d }
+        // Sample the entire border, not just 4 corners. A screenshot often
+        // contains a dark header above a much larger white scrolling feed.
+        val bins = HashMap<Int, Pair<Int, Int>>()
+        fun add(x: Int, y: Int) {
+            val c = p[y * width + x]
+            val key = ((c shr 20) and 0xf00) or
+                ((c shr 12) and 0xf0) or ((c shr 4) and 0xf)
+            val old = bins[key]
+            bins[key] = ((old?.first ?: 0) + 1) to (old?.second ?: c)
         }
-        return corners[best]
+        for (i in 0..24) {
+            val y = (height - 1) * i / 24
+            add(0, y)
+            add(width - 1, y)
+        }
+        for (i in 0..12) {
+            val x = (width - 1) * i / 12
+            add(x, 0)
+            add(x, height - 1)
+        }
+        return bins.values.maxByOrNull { it.first }?.second ?: p[0]
     }
 
     private fun colorDistance(a: Int, b: Int): Int =
