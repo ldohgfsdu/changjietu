@@ -34,12 +34,21 @@
 
 ---
 
+## 2026-11-11：v0.2.12 轻量视觉区域保护
+
+- 代码：PR #23（合并提交 647aaed），以分块实际像素检测头像/照片/图表及表格线框的连通区域，联合 OCR 标记切点禁区；提供检测进度及独立降级。
+- 测试：新建亮/暗背景的 ARGB 头像、照片、表格/聊天时间线样本，对检测本身和切点避让联动执行 JVM 测试；正式 APK 仍需 Release workflow 独立签名/哈希门禁。
+- 事实边界：视觉区域检测尚未达到语义版面理解水平；真实原始长图及机型的像素级导出/交互验收尚未完成。遇到无安全切点时保留旧风险提示，不宣称 100% 准确。
+- APK 体积：未增加第三方模型/SDK；保留 v0.2.11 bundled 中文 OCR，最终体积以新 Release 实际附件为准。
+
+---
+
 ## 1. 当前版本
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.11** | `app/build.gradle.kts` |
-| versionCode | **13** | 同上 |
+| versionName | **0.2.12** | `app/build.gradle.kts` |
+| versionCode | **14** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 

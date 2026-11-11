@@ -16,7 +16,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.11`（versionCode 13；发布状态以 GitHub Releases 为准）
+- 版本：`0.2.12`（versionCode 14；发布状态以 GitHub Releases 为准）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
@@ -39,9 +39,17 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 | 分享 | `ACTION_SEND_MULTIPLE` + `image/*` + FileProvider URI |
 | 分块解码 | `BitmapRegionDecoder`，单片处理完即释放 |
 
-## v0.2.11 内容感知切点（本版本）
+## v0.2.12 本机视觉内容避让
 
-[PR #20](https://github.com/ldohgfsdu/changjietu/pull/20) 正在新增端侧中文 OCR **文字行位置**避让，不存 OCR 文本；识别进度/可跳过、风险切点直达及 48dp 手柄。预览和正式切片使用相同的文字位置保护区。本版本将通过全量 CI、签名校验和远端发布回读；原始长图与真机性能验收仍需完成。
+- PR #23：新增基于实际像素的轻量视觉区域检测（头像、照片、连接的表格/图表线框），与原有中文 OCR 保护区合并，自动切点优先避开这些结构。
+- 使用 BitmapRegionDecoder 逐块检测；无云端上传或新增大模型依赖；视觉与 OCR 任意一个失败可独立降级。
+- 改进跨帖竖向时间线误连接和深浅色背景取色；处理页显示视觉区域/文字行数量与降级提示。
+- 真实长截图黄金样本与真机视觉验收尚未完成：**不保证所有头像、表格和图片永不截断**。高度超过单张上限的完整内容块，仍可能需要调整。
+- 算法级合成 ARGB 像素测试与 Android CI 是发布门禁，不可替代原始截图的真机输出对比。
+
+## v0.2.11 OCR 文字行避让（历史）
+
+[PR #20](https://github.com/ldohgfsdu/changjietu/pull/20) 已增加端侧中文 OCR **文字行位置**避让，不存 OCR 文本；识别进度/可跳过、风险切点直达及 48dp 手柄。预览和正式切片使用相同的文字位置保护区。本版本将通过全量 CI、签名校验和远端发布回读；原始长图与真机性能验收仍需完成。
 
 - 技术与验收：[docs/CONTENT_AWARE_SEAMS_V1.md](docs/CONTENT_AWARE_SEAMS_V1.md)
 - 尚未保证表格或图片完整性，输出仍按源像素不缩放；自动横向裁边继续采用谨慎保护策略。
@@ -101,7 +109,7 @@ changjietu.release.keyPassword=...
 
 ```bash
 # 先在 Releases 页面下载对应版本的 APK 到当前目录
-adb install -r changjietu-0.2.11-release.apk
+adb install -r changjietu-0.2.12-release.apk
 ```
 
 - 正式分发：GitHub Releases（APK 和同名 `.sha256` 两个资产，不将 APK 写入源码仓库）
