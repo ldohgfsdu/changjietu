@@ -965,7 +965,7 @@
       "anchors": {
         "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
           "private fun cleanupOldEntries(",
-          "fileRetention.canPrune(entry, rank, keep)"
+          "fileRetention.prune(entry, rank, keep)"
         ],
         "app/src/main/java/com/changjietu/app/feature/export/SliceZipper.kt": [
           "val part = File("

@@ -19,6 +19,7 @@ internal class ExportFileRetention(
     }
 
     @Synchronized fun acquire(files: Collection<File>): AutoCloseable {
+        require(files.all(File::isFile)) { "导出文件已失效，请重新切片后重试" }
         val keys = files.map(::key).distinct()
         keys.forEach { readers[it] = (readers[it] ?: 0) + 1 }
         var closed = false
@@ -44,6 +45,13 @@ internal class ExportFileRetention(
             if (file.exists()) file.setLastModified(now)
             file.parentFile?.takeIf(File::exists)?.setLastModified(now)
         }
+    }
+
+    /** Hold the same lock as acquire/markShared through the actual deletion. Call on IO only. */
+    @Synchronized fun prune(entry: File, rank: Int, keep: Int, beforeDelete: () -> Unit = {}): Boolean {
+        if (!canPrune(entry, rank, keep)) return false
+        beforeDelete()
+        return entry.deleteRecursively()
     }
 
     @Synchronized fun canPrune(entry: File, rank: Int, keep: Int): Boolean {

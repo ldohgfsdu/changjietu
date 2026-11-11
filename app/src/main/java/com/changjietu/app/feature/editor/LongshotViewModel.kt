@@ -594,7 +594,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             ?: return
         entries.forEachIndexed { rank, entry ->
             if (visible.any { fileRetention.covers(entry, it) }) return@forEachIndexed
-            if (fileRetention.canPrune(entry, rank, keep)) entry.deleteRecursively()
+            fileRetention.prune(entry, rank, keep)
         }
     }
 
@@ -792,7 +792,8 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             onResult(Result.failure(IllegalStateException(ProcessErrorMessages.NO_SELECTION)))
             return
         }
-        val lease = fileRetention.acquire(slices.map { it.file })
+        val lease = runCatching { fileRetention.acquire(slices.map { it.file }) }
+            .getOrElse { onResult(Result.failure(it)); return }
         viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) { exportRepo.saveToGallery(slices) }
@@ -827,7 +828,8 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             onResult(Result.failure(IllegalStateException(ProcessErrorMessages.NO_SELECTION)))
             return
         }
-        val lease = fileRetention.acquire(slices.map { it.file })
+        val lease = runCatching { fileRetention.acquire(slices.map { it.file }) }
+            .getOrElse { onResult(Result.failure(it)); return }
         viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
