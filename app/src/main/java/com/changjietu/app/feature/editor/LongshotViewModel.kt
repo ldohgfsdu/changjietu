@@ -703,6 +703,8 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     current.copy(isProcessing = true, statusMessage = "重新切片…", error = null)
                 } else current
             }
+            var outputDirectory: File? = null
+            var committed = false
             try {
                 val updated = withContext(Dispatchers.IO) {
                     val app = getApplication<Application>()
@@ -718,6 +720,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                             ranges = ranges,
                         )
                         val outDir = ReprocessOutputDirectory.create(File(app.cacheDir, "slices"))
+                        outputDirectory = outDir
                         cleanupOldEntries(File(app.cacheDir, "slices"), keep = 3, protect = outDir)
                         val slices = ImageSplitter.splitToFiles(
                             SplitRequest(
@@ -746,15 +749,20 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 if (isActive && generation == sourceGeneration) {
-                    _editor.update { current ->
-                        if (current == null || current.source.uri != ed.source.uri) current else {
-                            updated.copy(
-                                selectedIndices = ReprocessSelectionPolicy.resolve(
-                                    currentSelection = current.selectedIndices,
-                                    currentSliceCount = current.slices.size,
-                                    newSliceCount = updated.slices.size,
-                                ),
-                            )
+                    // A cancelled or superseded job must not retain its unreferenced files.
+                    while (isActive && generation == sourceGeneration) {
+                        val current = _editor.value ?: break
+                        if (current.source.uri != ed.source.uri) break
+                        val next = updated.copy(
+                            selectedIndices = ReprocessSelectionPolicy.resolve(
+                                currentSelection = current.selectedIndices,
+                                currentSliceCount = current.slices.size,
+                                newSliceCount = updated.slices.size,
+                            ),
+                        )
+                        if (_editor.compareAndSet(current, next)) {
+                            committed = true
+                            break
                         }
                     }
                 }
@@ -769,6 +777,8 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                         else current.copy(isProcessing = false, error = friendly, statusMessage = null)
                     }
                 }
+            } finally {
+                ReprocessOutputLifecycle.cleanupIfUncommitted(outputDirectory, committed)
             }
         }
     }
