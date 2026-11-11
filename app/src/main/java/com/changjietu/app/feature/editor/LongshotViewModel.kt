@@ -27,6 +27,9 @@ import com.changjietu.app.feature.export.SliceZipper
 import com.changjietu.app.feature.history.RecentStore
 import com.changjietu.app.image.analysis.ContentProtectedRows
 import com.changjietu.app.image.analysis.LocalTextLineScanner
+import com.changjietu.app.image.analysis.LocalVisualBlockScanner
+import com.changjietu.app.image.analysis.VisualBlockScanResult
+import com.changjietu.app.image.analysis.LocalTextScanResult
 import com.changjietu.app.image.analysis.MarginDetector
 import com.changjietu.app.image.analysis.Margins
 import com.changjietu.app.image.analysis.QualityAnalyzer
@@ -91,6 +94,9 @@ data class TextScanStatus(
     val completed: Int = 0,
     val total: Int = 0,
     val lines: Int = 0,
+    val regions: Int = 0,
+    val stage: String = "分析内容中",
+    val partial: Boolean = false,
 )
 
 sealed interface PreviewBitmapState {
@@ -214,33 +220,75 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     private fun beginTextScan(info: SourceInfo, generation: Int) {
         stopTextScan()
         val epoch = textScanEpoch
-        _textScan.value = TextScanStatus(phase = TextScanPhase.RUNNING)
+        _textScan.value = TextScanStatus(phase = TextScanPhase.RUNNING, stage = "检测图片与图表")
         textScanJob = viewModelScope.launch {
             try {
-                val scanned = withContext(Dispatchers.IO) {
+                val result = withContext(Dispatchers.IO) {
                     val stream = getApplication<Application>().contentResolver.openInputStream(info.uri)
-                        ?: error("Cannot reopen source for local text scan")
+                        ?: error("Cannot reopen source for local content scan")
                     val region = stream.use { BitmapRegionSource.open(it) }
-                        ?: error("Cannot decode source for local text scan")
+                        ?: error("Cannot decode source for local content scan")
                     region.use { source ->
-                        LocalTextLineScanner.scan(source) { done, total ->
-                            if (generation == sourceGeneration && epoch == textScanEpoch) {
-                                _textScan.value = TextScanStatus(TextScanPhase.RUNNING, done, total)
+                        // Run both detectors independently. A broken OCR model or
+                        // unsupported visual tile must not discard the other result.
+                        val visual: VisualBlockScanResult? = try {
+                            LocalVisualBlockScanner.scan(source) { done, total ->
+                                if (generation == sourceGeneration && epoch == textScanEpoch) {
+                                    _textScan.value = TextScanStatus(
+                                        phase = TextScanPhase.RUNNING,
+                                        completed = done,
+                                        total = total,
+                                        stage = "检测图片与图表",
+                                    )
+                                }
                             }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            null
                         }
+                        val text: LocalTextScanResult? = try {
+                            LocalTextLineScanner.scan(source) { done, total ->
+                                if (generation == sourceGeneration && epoch == textScanEpoch) {
+                                    _textScan.value = TextScanStatus(
+                                        phase = TextScanPhase.RUNNING,
+                                        completed = done,
+                                        total = total,
+                                        regions = visual?.detectedRegions ?: 0,
+                                        stage = "检测文字行",
+                                    )
+                                }
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (visual == null && text == null) {
+                            error("Both local vision and OCR analysis failed")
+                        }
+                        Triple(
+                            LocalTextLineScanner.mergeRows(
+                                (visual?.protectedSourceRows ?: emptyList()) +
+                                    (text?.protectedSourceRows ?: emptyList())
+                            ),
+                            (text?.detectedLines ?: 0) to (visual?.detectedRegions ?: 0),
+                            visual == null || text == null,
+                        )
                     }
                 }
                 if (generation != sourceGeneration || epoch != textScanEpoch) return@launch
                 val updated = (_source.value ?: return@launch).copy(
-                    protectedSourceRows = scanned.protectedSourceRows,
+                    protectedSourceRows = result.first,
                 )
                 _source.value = updated
                 publishPreviewPlan(updated, _settings.value)
                 _textScan.value = TextScanStatus(
                     phase = TextScanPhase.READY,
-                    completed = _textScan.value.total,
-                    total = _textScan.value.total,
-                    lines = scanned.detectedLines,
+                    lines = result.second.first,
+                    regions = result.second.second,
+                    stage = "识别完成",
+                    partial = result.third,
                 )
             } catch (e: CancellationException) {
                 throw e
