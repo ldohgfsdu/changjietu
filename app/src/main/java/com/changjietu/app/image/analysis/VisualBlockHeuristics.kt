@@ -26,6 +26,7 @@ internal object VisualBlockHeuristics {
                 active[i] = differs || textured
             }
         }
+        removeTimelineSpines(active, width, height)
         // Two linear 3-pixel morphology passes join nearby anti-aliased strokes.
         // Avoid a full-image mask: each caller passes only one sampled tile.
         val horizontal = BooleanArray(n)
@@ -79,26 +80,46 @@ internal object VisualBlockHeuristics {
         return boxes
     }
 
+    /** Disconnect persistent timeline strokes that would join unrelated cards. */
+    private fun removeTimelineSpines(active: BooleanArray, width: Int, height: Int) {
+        val streak = IntArray(width)
+        val longest = IntArray(width)
+        for (y in 0 until height) for (x in 0 until width) {
+            streak[x] = if (active[y * width + x]) streak[x] + 1 else 0
+            if (streak[x] > longest[x]) longest[x] = streak[x]
+        }
+        val candidate = BooleanArray(width) {
+            longest[it] >= (height * 0.68f).toInt()
+        }
+        val n = candidate.count { it }
+        // Do not erase full-bleed photos (many candidate columns) or tables
+        // (many separated continuous vertical grid lines).
+        if (n == 0 || n > width / 8) return
+        var groups = 0
+        for (x in candidate.indices) {
+            if (candidate[x] && (x == 0 || !candidate[x - 1])) groups++
+        }
+        if (groups > 3) return
+        for (x in candidate.indices) {
+            if (!candidate[x]) continue
+            for (xx in (x - 2).coerceAtLeast(0)..(x + 2).coerceAtMost(width - 1)) {
+                for (y in 0 until height) active[y * width + xx] = false
+            }
+        }
+    }
+
     private fun background(p: IntArray, width: Int, height: Int): Int {
-        // Sample the entire border, not just 4 corners. A screenshot often
-        // contains a dark header above a much larger white scrolling feed.
+        // Sample the entire canvas; choosing only the border fails for a white
+        // feed with black side gutters or a dark toolbar.
         val bins = HashMap<Int, Pair<Int, Int>>()
-        fun add(x: Int, y: Int) {
+        for (yi in 0..24) for (xi in 0..18) {
+            val x = (width - 1) * xi / 18
+            val y = (height - 1) * yi / 24
             val c = p[y * width + x]
             val key = ((c shr 20) and 0xf00) or
                 ((c shr 12) and 0xf0) or ((c shr 4) and 0xf)
             val old = bins[key]
             bins[key] = ((old?.first ?: 0) + 1) to (old?.second ?: c)
-        }
-        for (i in 0..24) {
-            val y = (height - 1) * i / 24
-            add(0, y)
-            add(width - 1, y)
-        }
-        for (i in 0..12) {
-            val x = (width - 1) * i / 12
-            add(x, 0)
-            add(x, height - 1)
         }
         return bins.values.maxByOrNull { it.first }?.second ?: p[0]
     }
