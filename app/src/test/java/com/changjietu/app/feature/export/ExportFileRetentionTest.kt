@@ -53,6 +53,8 @@ class ExportFileRetentionTest {
         dir.setLastModified(now)
         val guard = ExportFileRetention(clock = { now })
         val lease = guard.acquire(listOf(File(dir, "slice.jpg").apply { writeText("sample") }))
+        // Writing the child updates the parent directory timestamp; restore the fake clock.
+        dir.setLastModified(now)
         lease.close()
         lease.close()
         assertFalse(guard.canPrune(dir, 5, 3))
