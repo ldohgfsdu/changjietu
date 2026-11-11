@@ -116,8 +116,8 @@ internal object VisualBlockHeuristics {
             val x = (width - 1) * xi / 18
             val y = (height - 1) * yi / 24
             val c = p[y * width + x]
-            val key = ((c shr 20) and 0xf00) or
-                ((c shr 12) and 0xf0) or ((c shr 4) and 0xf)
+            val key = ((c shr 12) and 0xf00) or
+                ((c shr 8) and 0xf0) or ((c shr 4) and 0xf)
             val old = bins[key]
             bins[key] = ((old?.first ?: 0) + 1) to (old?.second ?: c)
         }
