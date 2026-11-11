@@ -105,11 +105,14 @@ fun PreviewCutEditor(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             fontSize = 12.sp,
         )
-        if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds) {
+        Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterStart) {
             Text(
-                "红色切线：未检测到可靠空白，可能截断文字或表格，请手动检查",
-                color = UncertainLineColor,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
+                    "红色切线：可能截断文字或表格，请手动检查"
+                else "蓝色切线：仍需检查图片和表格是否完整",
+                color = if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
+                    UncertainLineColor else MiuixTheme.colorScheme.onSurfaceSecondary,
+                modifier = Modifier.padding(horizontal = 4.dp),
                 fontSize = 12.sp,
             )
         }
@@ -127,7 +130,7 @@ fun PreviewCutEditor(
             // the source image (the old screen displayed "第 1/N 条" off-screen).
             // Await a measured scroll extent before jumping so Compose does not
             // clamp the first scrollTo() call to zero.
-            LaunchedEffect(sourceHeight, contentTop, cuts.size, viewHeightPx, viewportHeightPx) {
+            LaunchedEffect(sourceHeight, contentTop, cuts.size, viewHeightPx) {
                 if (cuts.isEmpty()) return@LaunchedEffect
                 if (viewHeightPx > viewportHeightPx) {
                     snapshotFlow { scrollState.maxValue }.first { it > 0 }
@@ -339,21 +342,17 @@ fun PreviewCutEditor(
             }
             }
         }
-        if (manualActive) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "已手动调整 · 恢复自动重回自动",
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
-                )
-                TextButton(text = "恢复自动", onClick = onClearManualCuts)
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (manualActive) "已手动调整" else "自动切线",
+                fontSize = 12.sp,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            )
+            if (manualActive) TextButton(text = "恢复自动", onClick = onClearManualCuts)
         }
     }
 }
