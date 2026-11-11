@@ -35,12 +35,21 @@
 
 ---
 
+## v0.2.15：文件生命周期与发版说明
+
+- 为正在保存相册和打包 ZIP 的切片增加短期读者锁；分享之后为文件及其输出目录刷新 24h 保留时间。
+- 自动清理跳过当前预览/输出引用的切片，并且只删除超出保留期的历史缓存。
+- 新增 JUnit 生命周期测试，正式发布强制每版独立中文 Changelog，自动追加 APK 大小和哈希。
+- CI 仍验证签名连续性和远端 APK 回读；真机分享兼容性需单独验收。
+
+---
+
 ## 1. 当前版本
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.14** | `app/build.gradle.kts` |
-| versionCode | **16** | 同上 |
+| versionName | **0.2.15** | `app/build.gradle.kts` |
+| versionCode | **17** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 

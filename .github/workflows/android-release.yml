@@ -118,6 +118,18 @@ jobs:
           echo "apk=changjietu-$version-release.apk" >> "$GITHUB_OUTPUT"
           echo "previous=$previous" >> "$GITHUB_OUTPUT"
           echo "Release $tag (versionCode=$code) follows $previous"
+      - name: Enforce authored Chinese changelog
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          file="docs/releases/v$RELEASE_VERSION.md"
+          [[ -s "$file" ]] || { echo "::error::Missing changelog $file"; exit 1; }
+          for heading in "## 新增" "## 修复" "## 验证" "## 已知限制"; do
+            grep -Fqx "$heading" "$file" || { echo "::error::Missing heading: $heading"; exit 1; }
+          done
+          [[ $(wc -c < "$file") -ge 260 ]] || { echo "::error::Changelog is too short"; exit 1; }
       - name: Load original signing identity
         env:
           KEYSTORE_B64: ${{ secrets.CHANGJIETU_KEYSTORE_BASE64 }}
@@ -178,12 +190,21 @@ jobs:
         run: |
           set -euo pipefail
           # A failed upload, checksum, signature or download must not expose a public Release.
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          cp "docs/releases/v$RELEASE_VERSION.md" "$notes_file"
+          {
+            echo
+            echo "## 安装包与构建校验"
+            printf -- '- APK：%s（%s 字节）\n' "$APK_NAME" "$(stat -c %s "$APK_NAME")"
+            printf -- '- SHA-256：%s\n' "$(cut -d ' ' -f 1 "$APK_NAME.sha256")"
+            echo "- 门禁：单测、Lint、状态机验证、签名连续性、远端下载与哈希回读"
+          } >> "$notes_file"
           gh release create "$RELEASE_TAG" \
             "$APK_NAME" "$APK_NAME.sha256" \
             --draft \
             --target "$GITHUB_SHA" \
             --title "changjietu $RELEASE_VERSION" \
-            --notes "Android release $RELEASE_TAG. Unit tests, formal verification, full lint, and signed release build passed. Signature verified against the preceding release; APK SHA-256 attached."
+            --notes-file "$notes_file"
           remote_dir="$RUNNER_TEMP/release-readback"
           mkdir -p "$remote_dir"
           gh release download "$RELEASE_TAG" --pattern "$APK_NAME" --dir "$remote_dir"

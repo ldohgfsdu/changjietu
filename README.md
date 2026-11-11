@@ -13,6 +13,14 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 5. **系统分享入口**，相册一点分享即可处理
 6. **分块解码**，避免超长图 OOM
 
+## v0.2.15 保存与分享可靠性
+
+- 保存相册和打包 ZIP 时保留选中切片，防止并发重新切片时缓存被自动清理。
+- 分享给其他 App 后将缓存保留至少 24 小时；处理中的结果不参与清理。
+- ZIP 临时文件名细化到毫秒；不引入 OCR 或新的大体积依赖。
+- Release 更新记录改为每版独立中文文档，并由 CI 检查「新增、修复、验证、已知限制」。
+- 详见 [v0.2.15 更新日志](docs/releases/v0.2.15.md)。
+
 ## v0.2.14 回滚说明
 
 用户实机确认 v0.2.11–v0.2.13 引入的端侧 OCR / 视觉结构检测并未解决图片、图表和表格被切断的问题，且 APK 从约 1.6 MB 增至约 45.4 MB，因此按用户要求回滚。
@@ -27,7 +35,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.14`（versionCode 16；发布状态以 GitHub Releases 为准）
+- 版本：`0.2.15`（versionCode 17；发布状态以 GitHub Releases 为准）
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
