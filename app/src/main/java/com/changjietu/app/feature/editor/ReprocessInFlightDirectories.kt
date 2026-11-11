@@ -10,6 +10,9 @@ internal object ReprocessInFlightDirectories {
     private val writers = mutableMapOf<File, Int>()
 
     @Synchronized
+    fun create(root: File): File = ReprocessOutputDirectory.create(root).also(::acquire)
+
+    @Synchronized
     fun acquire(directory: File) {
         val key = directory.absoluteFile
         writers[key] = (writers[key] ?: 0) + 1
