@@ -695,9 +695,14 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun reprocessFromRanges(ranges: List<IntRange>, cropTop: Int, cropBottom: Int) {
         val ed = _editor.value ?: return
+        val generation = sourceGeneration
         reprocessJob?.cancel()
         reprocessJob = viewModelScope.launch {
-            _editor.value = ed.copy(isProcessing = true, statusMessage = "重新切片…", error = null)
+            _editor.update { current ->
+                if (generation == sourceGeneration && current != null && current.source.uri == ed.source.uri) {
+                    current.copy(isProcessing = true, statusMessage = "重新切片…", error = null)
+                } else current
+            }
             try {
                 val updated = withContext(Dispatchers.IO) {
                     val app = getApplication<Application>()
@@ -726,17 +731,11 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                                 rowEnergy = ed.source.rowEnergy,
                             ),
                         )
-                        val preserved = if (slices.size == ed.slices.size) {
-                            ed.selectedIndices.filter { it in slices.indices }.toSet()
-                        } else {
-                            slices.indices.toSet()
-                        }
                         ed.copy(
                             cutEnds = SplitPointDetector.cutEndsFromRanges(ranges, cropBottom),
                             cropTop = cropTop,
                             cropBottom = cropBottom,
                             slices = slices,
-                            selectedIndices = preserved,
                             isProcessing = false,
                             statusMessage = if (slices.size == ed.slices.size) {
                                 "已更新为 ${slices.size} 张"
@@ -746,13 +745,30 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     }
                 }
-                if (isActive) _editor.value = updated
+                if (isActive && generation == sourceGeneration) {
+                    _editor.update { current ->
+                        if (current == null || current.source.uri != ed.source.uri) current else {
+                            updated.copy(
+                                selectedIndices = ReprocessSelectionPolicy.resolve(
+                                    currentSelection = current.selectedIndices,
+                                    currentSliceCount = current.slices.size,
+                                    newSliceCount = updated.slices.size,
+                                ),
+                            )
+                        }
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (!isActive) return@launch
                 val friendly = ProcessErrorMessages.logAndFriendly(e, ProcessErrorMessages.REPROCESS_FAILED)
-                _editor.value = ed.copy(isProcessing = false, error = friendly, statusMessage = null)
+                if (generation == sourceGeneration) {
+                    _editor.update { current ->
+                        if (current == null || current.source.uri != ed.source.uri) current
+                        else current.copy(isProcessing = false, error = friendly, statusMessage = null)
+                    }
+                }
             }
         }
     }

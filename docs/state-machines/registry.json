@@ -534,7 +534,7 @@
         "app/src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt": [
           "private var reprocessJob: Job? = null",
           "private fun reprocessFromRanges(",
-          "if (isActive) _editor.value = updated"
+          "if (isActive && generation == sourceGeneration)"
         ]
       },
       "states": [
