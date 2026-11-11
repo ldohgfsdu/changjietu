@@ -65,4 +65,41 @@ class ReprocessInFlightDirectoriesTest {
         }
     }
 
+
+    @Test fun writerRegistrationCannotInterleaveWithPruneDecisionAndDeletion() {
+        val root = Files.createTempDirectory("inflight-atomic").toFile()
+        val dir = File(root, "stale").also { it.mkdirs() }
+        val decisionReached = java.util.concurrent.CountDownLatch(1)
+        val allowDelete = java.util.concurrent.CountDownLatch(1)
+        val registrationFinished = java.util.concurrent.CountDownLatch(1)
+        val pruner = Thread {
+            ReprocessInFlightDirectories.pruneIfUnprotected(dir) {
+                decisionReached.countDown()
+                check(allowDelete.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                dir.deleteRecursively()
+            }
+        }
+        val writer = Thread {
+            ReprocessInFlightDirectories.acquire(dir)
+            registrationFinished.countDown()
+        }
+        try {
+            pruner.start()
+            assertTrue(decisionReached.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            writer.start()
+            assertFalse(
+                "writer registered between prune approval and deletion",
+                registrationFinished.await(200, java.util.concurrent.TimeUnit.MILLISECONDS),
+            )
+            allowDelete.countDown()
+            pruner.join(5000)
+            assertTrue(registrationFinished.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        } finally {
+            allowDelete.countDown()
+            pruner.join(5000)
+            writer.join(5000)
+            ReprocessInFlightDirectories.release(dir)
+            root.deleteRecursively()
+        }
+    }
 }
