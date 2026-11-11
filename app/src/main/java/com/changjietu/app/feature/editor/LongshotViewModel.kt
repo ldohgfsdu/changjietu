@@ -699,7 +699,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         reprocessJob?.cancel()
         reprocessJob = viewModelScope.launch {
             _editor.update { current ->
-                if (generation == sourceGeneration && current?.source?.uri == ed.source.uri) {
+                if (generation == sourceGeneration && current != null && current.source.uri == ed.source.uri) {
                     current.copy(isProcessing = true, statusMessage = "重新切片…", error = null)
                 } else current
             }
@@ -747,7 +747,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (isActive && generation == sourceGeneration) {
                     _editor.update { current ->
-                        if (current?.source?.uri != ed.source.uri) current else {
+                        if (current == null || current.source.uri != ed.source.uri) current else {
                             updated.copy(
                                 selectedIndices = ReprocessSelectionPolicy.resolve(
                                     currentSelection = current.selectedIndices,
@@ -765,7 +765,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 val friendly = ProcessErrorMessages.logAndFriendly(e, ProcessErrorMessages.REPROCESS_FAILED)
                 if (generation == sourceGeneration) {
                     _editor.update { current ->
-                        if (current?.source?.uri != ed.source.uri) current
+                        if (current == null || current.source.uri != ed.source.uri) current
                         else current.copy(isProcessing = false, error = friendly, statusMessage = null)
                     }
                 }
