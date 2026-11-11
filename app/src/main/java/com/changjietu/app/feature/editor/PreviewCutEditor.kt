@@ -57,7 +57,7 @@ import kotlin.math.roundToInt
 
 private const val MAX_VIEW_HEIGHT_DP = 6000f
 
-private val HANDLE_SIZE = 48.dp
+private val HANDLE_SIZE = 38.dp
 private val CutLineColor = Color(0xFF3482FF)
 private val UncertainLineColor = Color(0xFFFF5454)
 private val CropLineColor = Color(0xFFE6A23C)
@@ -73,7 +73,6 @@ fun PreviewCutEditor(
     showCrop: Boolean,
     manualActive: Boolean,
     uncertainCutEnds: Set<Int> = emptySet(),
-    initialCutIndex: Int = 0,
     onPreviewCut: (Int, Int) -> Unit,
     onAddCutPoint: (Int) -> Unit,
     onClearManualCuts: () -> Unit,
@@ -84,10 +83,7 @@ fun PreviewCutEditor(
     val sourceHeight = plan.sourceHeight.coerceAtLeast(1)
     val contentTop = plan.contentTop
     val scrollState = rememberScrollState()
-    var selectedCutIndex by remember { mutableIntStateOf(initialCutIndex.coerceIn(0, (cuts.size - 1).coerceAtLeast(0))) }
-    LaunchedEffect(initialCutIndex) {
-        selectedCutIndex = initialCutIndex.coerceIn(0, (cuts.size - 1).coerceAtLeast(0))
-    }
+    var selectedCutIndex by remember { mutableIntStateOf(0) }
     LaunchedEffect(cuts.size) {
         if (selectedCutIndex >= cuts.size) selectedCutIndex = (cuts.size - 1).coerceAtLeast(0)
     }
@@ -103,14 +99,14 @@ fun PreviewCutEditor(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            "拖动手柄调整切线，长按图片新增切点",
+            "拖 ⇅ 调整切点 · 长按长图新增切入点",
             color = MiuixTheme.colorScheme.onSurfaceSecondary,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             fontSize = 12.sp,
         )
         if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds) {
             Text(
-                "当前切线有截断风险，请拖到文字、表格或图片之外",
+                "红色切线：未检测到可靠空白，可能截断文字或表格，请手动检查",
                 color = UncertainLineColor,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 fontSize = 12.sp,
@@ -183,9 +179,7 @@ fun PreviewCutEditor(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            if (cuts.isEmpty()) "无切线" else
-                                "第 ${selectedCutIndex + 1}/${cuts.size} 条 " +
-                                    (if (cuts[selectedCutIndex] in uncertainCutEnds) "（需检查）" else "（定位）"),
+                            if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条 · 定位",
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         )

@@ -1,8 +1,7 @@
-name: Screenshot sample regression (nightly)
+name: Screenshot geometry regression (nightly)
 
 on:
   schedule:
-    # Daily targeted regression, independent of APK publishing.
     - cron: "41 2 * * *"
   workflow_dispatch:
 
@@ -10,11 +9,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: screenshot-samples-${{ github.ref }}
+  group: screenshot-geometry-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  sample-regression:
+  geometry-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -32,20 +31,19 @@ jobs:
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
           chmod +x gradlew tools/aapt2
       - uses: gradle/actions/setup-gradle@v6
-      - name: Run deterministic screenshot sample corpus and geometry tests
+      - name: Run v0.2.10-compatible seam, crop, and pixel-coverage regressions
         run: |
           ./gradlew :app:testDebugUnitTest \
-            --tests 'com.changjietu.app.image.analysis.ScreenshotSampleRegressionTest' \
-            --tests 'com.changjietu.app.image.analysis.ContentAwareCutTest' \
-            --tests 'com.changjietu.app.image.analysis.ContentProtectedRowsTest' \
+            --tests 'com.changjietu.app.image.analysis.SplitPointDetectorEnergyTest' \
             --tests 'com.changjietu.app.image.analysis.SplitPointDetectorUnsafeSeamTest' \
             --tests 'com.changjietu.app.core.SafeCropMarginsTest' \
+            --tests 'com.changjietu.app.image.processing.SliceGeometryTest' \
             --no-daemon --stacktrace
-      - name: Archive sample failure evidence
+      - name: Archive regression evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sample-regression-${{ github.run_id }}
+          name: geometry-regression-${{ github.run_id }}
           path: |
             app/build/test-results/testDebugUnitTest/
             app/build/reports/tests/testDebugUnitTest/

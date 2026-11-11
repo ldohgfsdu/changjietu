@@ -25,12 +25,6 @@ import com.changjietu.app.feature.export.SaveSummary
 import com.changjietu.app.feature.export.SavedZip
 import com.changjietu.app.feature.export.SliceZipper
 import com.changjietu.app.feature.history.RecentStore
-import com.changjietu.app.image.analysis.ContentProtectedRows
-import com.changjietu.app.image.analysis.LocalTextLineScanner
-import com.changjietu.app.image.analysis.LocalVisualBlockScanner
-import com.changjietu.app.image.analysis.VisualBlockScanResult
-import com.changjietu.app.image.analysis.LocalTextScanResult
-import com.changjietu.app.image.analysis.VisualSeamPlanner
 import com.changjietu.app.image.analysis.MarginDetector
 import com.changjietu.app.image.analysis.Margins
 import com.changjietu.app.image.analysis.QualityAnalyzer
@@ -86,26 +80,6 @@ data class PreviewPlan(
     val contentHeight: Int,
     val sourceWidth: Int,
     val sourceHeight: Int,
-)
-
-enum class TextScanPhase { IDLE, RUNNING, READY, FAILED, SKIPPED }
-
-private data class ContentGeometryResult(
-    val protectedRows: List<IntRange>,
-    val visualRows: List<IntRange>,
-    val lines: Int,
-    val regions: Int,
-    val partial: Boolean,
-)
-
-data class TextScanStatus(
-    val phase: TextScanPhase = TextScanPhase.IDLE,
-    val completed: Int = 0,
-    val total: Int = 0,
-    val lines: Int = 0,
-    val regions: Int = 0,
-    val stage: String = "分析内容中",
-    val partial: Boolean = false,
 )
 
 sealed interface PreviewBitmapState {
@@ -207,111 +181,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     private var previewJob: Job? = null
 
-    private val _textScan = MutableStateFlow(TextScanStatus())
-    val textScan: StateFlow<TextScanStatus> = _textScan.asStateFlow()
-    private var textScanJob: Job? = null
-    private var textScanEpoch = 0
-
-    private fun stopTextScan(phase: TextScanPhase = TextScanPhase.IDLE) {
-        textScanEpoch++
-        textScanJob?.cancel()
-        textScanJob = null
-        _textScan.value = TextScanStatus(phase = phase)
-    }
-
-    /** Skip is explicit. An incomplete recognition never masquerades as "safe". */
-    fun skipTextScan() {
-        if (_textScan.value.phase == TextScanPhase.RUNNING) {
-            stopTextScan(TextScanPhase.SKIPPED)
-        }
-    }
-
-    private fun beginTextScan(info: SourceInfo, generation: Int) {
-        stopTextScan()
-        val epoch = textScanEpoch
-        _textScan.value = TextScanStatus(phase = TextScanPhase.RUNNING, stage = "检测图片与图表")
-        textScanJob = viewModelScope.launch {
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    val stream = getApplication<Application>().contentResolver.openInputStream(info.uri)
-                        ?: error("Cannot reopen source for local content scan")
-                    val region = stream.use { BitmapRegionSource.open(it) }
-                        ?: error("Cannot decode source for local content scan")
-                    region.use { source ->
-                        // Run both detectors independently. A broken OCR model or
-                        // unsupported visual tile must not discard the other result.
-                        val visual: VisualBlockScanResult? = try {
-                            LocalVisualBlockScanner.scan(source) { done, total ->
-                                if (generation == sourceGeneration && epoch == textScanEpoch) {
-                                    _textScan.value = TextScanStatus(
-                                        phase = TextScanPhase.RUNNING,
-                                        completed = done,
-                                        total = total,
-                                        stage = "检测图片与图表",
-                                    )
-                                }
-                            }
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (_: Exception) {
-                            null
-                        }
-                        val text: LocalTextScanResult? = try {
-                            LocalTextLineScanner.scan(source) { done, total ->
-                                if (generation == sourceGeneration && epoch == textScanEpoch) {
-                                    _textScan.value = TextScanStatus(
-                                        phase = TextScanPhase.RUNNING,
-                                        completed = done,
-                                        total = total,
-                                        regions = visual?.detectedRegions ?: 0,
-                                        stage = "检测文字行",
-                                    )
-                                }
-                            }
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (_: Exception) {
-                            null
-                        }
-                        if (visual == null && text == null) {
-                            error("Both local vision and OCR analysis failed")
-                        }
-                        ContentGeometryResult(
-                            protectedRows = LocalTextLineScanner.mergeRows(
-                                (visual?.protectedSourceRows ?: emptyList()) +
-                                    (text?.protectedSourceRows ?: emptyList())
-                            ),
-                            visualRows = visual?.protectedSourceRows ?: emptyList(),
-                            lines = text?.detectedLines ?: 0,
-                            regions = visual?.detectedRegions ?: 0,
-                            partial = visual == null || text == null,
-                        )
-                    }
-                }
-                if (generation != sourceGeneration || epoch != textScanEpoch) return@launch
-                val updated = (_source.value ?: return@launch).copy(
-                    protectedSourceRows = result.protectedRows,
-                    visualSourceRows = result.visualRows,
-                )
-                _source.value = updated
-                publishPreviewPlan(updated, _settings.value)
-                _textScan.value = TextScanStatus(
-                    phase = TextScanPhase.READY,
-                    lines = result.lines,
-                    regions = result.regions,
-                    stage = "识别完成",
-                    partial = result.partial,
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                if (generation == sourceGeneration && epoch == textScanEpoch) {
-                    _textScan.value = TextScanStatus(phase = TextScanPhase.FAILED)
-                }
-            }
-        }
-    }
-
     /** 处理页全屏手动切线（source 坐标，不含末端）。null = 自动计划；与裁边解耦，切换裁边不重置。 */
     private val _manualCuts = MutableStateFlow<List<Int>?>(null)
     val manualCuts: StateFlow<List<Int>?> = _manualCuts.asStateFlow()
@@ -378,7 +247,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     fun openRecent(uri: Uri) = openUri(uri, UriAccessSource.RECENT)
 
     fun updateSettings(transform: (ProcessSettings) -> ProcessSettings) {
-        val wasEnabled = _settings.value.avoidTextLines
         _settings.update { current ->
             val next = transform(current)
             next.copy(
@@ -389,9 +257,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         // 解耦：裁边/高度/重叠变化都不清空 manualCuts（source 坐标），由映射层过滤越界点。
         // 重新估算片数
         val src = _source.value ?: return
-        val enabled = _settings.value.avoidTextLines
-        if (wasEnabled && !enabled) stopTextScan(TextScanPhase.SKIPPED)
-        if (!wasEnabled && enabled) beginTextScan(src, sourceGeneration)
         publishPreviewPlan(src, _settings.value)
     }
 
@@ -474,7 +339,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             tryPersistRead(uri)
         }
         val generation = ++sourceGeneration
-        stopTextScan()
         reprocessJob?.cancel()
         reprocessJob = null
         // Claim loading synchronously before HomeScreen / share navigation enters process.
@@ -499,8 +363,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 publishPreviewPlan(info, _settings.value)
                 refreshPreviewBitmap(info, generation)
                 _homeState.value = HomeUiState.Idle
-                if (_settings.value.avoidTextLines) beginTextScan(info, generation)
-                else _textScan.value = TextScanStatus(TextScanPhase.SKIPPED)
             } catch (e: Exception) {
                 if (generation != sourceGeneration) return@launch
                 _source.value = null
@@ -583,7 +445,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startProcess() {
         val srcInfo = _source.value ?: return
-        if (_textScan.value.phase == TextScanPhase.RUNNING) return
         if (_editor.value?.isProcessing == true) return
         reprocessJob?.cancel()
         reprocessJob = null
@@ -677,17 +538,11 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     FloatArray(contentH) { 1f }
                 }
-                VisualSeamPlanner.plan(
+                SplitPointDetector.plan(
                     contentHeight = contentH,
                     targetSliceHeight = s.targetHeight,
                     overlap = s.overlap,
                     rowEnergy = contentEnergy,
-                    visualRows = if (s.avoidTextLines) ContentProtectedRows.inContent(
-                        srcInfo.visualSourceRows, margins.top, contentH,
-                    ) else emptyList(),
-                    protectedRows = if (s.avoidTextLines) ContentProtectedRows.inContent(
-                        srcInfo.protectedSourceRows, margins.top, contentH,
-                    ) else emptyList(),
                 )
             }
             if (s.overlap == 0) {
@@ -1004,7 +859,6 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun resetPreview() {
-        stopTextScan()
         previewJob?.cancel()
         previewJob = null
         _previewPlan.value = null
@@ -1052,17 +906,11 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             FloatArray(contentH) { 1f }
         }
-        val plan = VisualSeamPlanner.plan(
+        val plan = SplitPointDetector.plan(
             contentHeight = contentH,
             targetSliceHeight = settings.targetHeight,
             overlap = settings.overlap,
             rowEnergy = contentEnergy,
-            visualRows = if (settings.avoidTextLines) ContentProtectedRows.inContent(
-                src.visualSourceRows, margins.top, contentH,
-            ) else emptyList(),
-            protectedRows = if (settings.avoidTextLines) ContentProtectedRows.inContent(
-                src.protectedSourceRows, margins.top, contentH,
-            ) else emptyList(),
         )
         return PreviewPlan(
             sliceCount = plan.sliceCount,

@@ -23,8 +23,8 @@ android {
         applicationId = "com.changjietu.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.2.13"
+        versionCode = 16
+        versionName = "0.2.14"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -81,10 +81,6 @@ android {
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
     implementation(composeBom)
-
-    // Bundled model: text-line boxes are computed on-device, no model download
-    // required at runtime. OCR is not used to reconstruct or alter text pixels.
-    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")

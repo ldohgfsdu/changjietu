@@ -38,7 +38,6 @@ object SplitPointDetector {
         minSlices: Int = 1,
         maxSlices: Int = 400,
         minGapHeight: Int = 6,
-        protectedRows: List<IntRange> = emptyList(),
     ): SplitPlan {
         require(contentHeight > 0)
         val target = targetSliceHeight.coerceIn(400, 8000)
@@ -72,7 +71,6 @@ object SplitPointDetector {
                 searchWindow = searchWindow,
                 maxSlices = hardMax,
                 minGapHeight = minGapHeight,
-                protectedRows = protectedRows,
             )
         }
 
@@ -215,15 +213,7 @@ object SplitPointDetector {
         searchWindow: Int,
         maxSlices: Int,
         minGapHeight: Int,
-        protectedRows: List<IntRange>,
     ): List<IntRange> {
-        // At most source height booleans; avoid creating a gigantic bitmap mask.
-        val blocked = BooleanArray(contentHeight)
-        for (range in protectedRows) {
-            val from = range.first.coerceAtLeast(0)
-            val to = range.last.coerceAtMost(contentHeight - 1)
-            if (from <= to) for (y in from..to) blocked[y] = true
-        }
         val smoothed = smooth(rowEnergy, contentHeight, radius = 2)
         val threshold = contentThreshold(smoothed, contentHeight)
         val gaps = findGaps(smoothed, contentHeight, threshold, minGapHeight)
@@ -256,11 +246,10 @@ object SplitPointDetector {
                 ideal = ideal,
                 rangeStart = cursor,
                 target = target,
-                blocked = blocked,
             )
             // Without an identified gap, still produce a lossless full-coverage
             // geometric split; the editor will explicitly warn about uncertainty.
-            val cut = (gapCut ?: findLowestEnergyY(smoothed, safeStart, safeEnd, ideal, blocked))
+            val cut = (gapCut ?: findLowestEnergyY(smoothed, safeStart, safeEnd, ideal))
                 .coerceIn(safeStart, safeEnd)
 
             cuts.add(cut)
@@ -303,7 +292,6 @@ object SplitPointDetector {
             gaps = gaps,
             energy = smoothed,
             searchWindow = effectiveWindow,
-            blocked = blocked,
         )
     }
 
@@ -319,7 +307,6 @@ object SplitPointDetector {
         cutEnds: List<Int>,
         rowEnergy: FloatArray,
         minGapHeight: Int = 6,
-        protectedRows: List<IntRange> = emptyList(),
     ): List<Int> {
         if (cutEnds.isEmpty()) return emptyList()
         if (rowEnergy.isEmpty()) return cutEnds
@@ -332,7 +319,6 @@ object SplitPointDetector {
         )
         return cutEnds.filter { cut ->
             cut !in 1 until rowEnergy.size ||
-                protectedRows.any { cut in it } ||
                 gaps.none { gap -> cut >= gap.first + 2 && cut <= gap.last - 1 }
         }
     }
@@ -345,7 +331,6 @@ object SplitPointDetector {
         ideal: Int,
         rangeStart: Int,
         target: Int,
-        blocked: BooleanArray? = null,
     ): Int? {
         var best: Int? = null
         var bestScore = Float.NEGATIVE_INFINITY
@@ -355,13 +340,7 @@ object SplitPointDetector {
             val hi = min(gap.last, windowEnd)
             if (hi < lo) continue
             if (hi - lo + 1 < 3) continue
-            val midpoint = (lo + hi) / 2
-            val cut = if (blocked == null) midpoint else {
-                // A low-energy gap may still contain a detected glyph.
-                // Search its interior for a real unprotected pixel row.
-                (lo + 1 until hi).filter { !blocked[it] }.minByOrNull { abs(it - midpoint) }
-                    ?: continue
-            }
+            val cut = (lo + hi) / 2
             val gapLen = gap.last - gap.first + 1
             val gapScore = gapLen.coerceAtMost(150).toFloat() / 150f * 50f
             val distScore = (1f - abs(cut - ideal) / span).coerceIn(0f, 1f) * 30f
@@ -390,7 +369,6 @@ object SplitPointDetector {
         gaps: List<IntRange>,
         energy: FloatArray,
         searchWindow: Int,
-        blocked: BooleanArray? = null,
     ): List<IntRange> {
         if (ranges.size < 2) return ranges
         val prev = ranges[ranges.size - 2]
@@ -423,8 +401,7 @@ object SplitPointDetector {
             ideal = ideal,
             rangeStart = combinedStart,
             target = target,
-            blocked = blocked,
-        ) ?: findLowestEnergyY(energy, windowStart, windowEnd, ideal, blocked)).coerceIn(lo, hi)
+        ) ?: findLowestEnergyY(energy, windowStart, windowEnd, ideal)).coerceIn(lo, hi)
 
         val nextStart = (cut - ov).coerceAtLeast(0)
         val newPrev = combinedStart until cut
@@ -539,16 +516,12 @@ object SplitPointDetector {
         windowStart: Int,
         windowEnd: Int,
         idealEnd: Int,
-        blocked: BooleanArray? = null,
     ): Int {
         val start = windowStart.coerceIn(0, rowEnergy.lastIndex)
         val end = windowEnd.coerceIn(start, rowEnergy.lastIndex)
         var bestY = idealEnd.coerceIn(start, end)
         var bestScore = Float.MAX_VALUE
-        var foundUnblocked = false
         for (y in start..end) {
-            if (blocked != null && y in blocked.indices && blocked[y]) continue
-            foundUnblocked = true
             // 平滑：看邻域均值，避免单像素噪声
             val e = localEnergy(rowEnergy, y, radius = 2)
             val dist = abs(y - idealEnd).toFloat()
@@ -557,11 +530,6 @@ object SplitPointDetector {
                 bestScore = score
                 bestY = y
             }
-        }
-        // No cut can avoid all recognized text within this segment.
-        // Return the deterministic old candidate and mark it uncertain in UI.
-        if (!foundUnblocked && blocked != null) {
-            return findLowestEnergyY(rowEnergy, start, end, idealEnd)
         }
         return bestY
     }
