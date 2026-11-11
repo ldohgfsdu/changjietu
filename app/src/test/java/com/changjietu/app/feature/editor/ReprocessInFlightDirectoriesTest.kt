@@ -34,4 +34,35 @@ class ReprocessInFlightDirectoriesTest {
             assertFalse(ReprocessInFlightDirectories.isProtected(dir))
         } finally { root.deleteRecursively() }
     }
+    @Test fun competingCleanupCannotObserveActiveOutputAsUnprotected() {
+        val root = Files.createTempDirectory("inflight-race").toFile()
+        val registered = java.util.concurrent.CountDownLatch(1)
+        val allowRelease = java.util.concurrent.CountDownLatch(1)
+        val finished = java.util.concurrent.CountDownLatch(1)
+        val output = File(root, "active")
+        val writer = Thread {
+            try {
+                ReprocessInFlightDirectories.acquire(output)
+                registered.countDown()
+                check(allowRelease.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            } finally {
+                ReprocessInFlightDirectories.release(output)
+                finished.countDown()
+            }
+        }
+        try {
+            writer.start()
+            assertTrue("writer did not register", registered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            // Simulates a newer reprocess scanning the cache while the old encoder is blocked.
+            assertTrue(ReprocessInFlightDirectories.isProtected(output))
+            assertTrue(ReprocessInFlightDirectories.isProtected(File(output, "partial.jpg")))
+        } finally {
+            allowRelease.countDown()
+            assertTrue("writer did not finish", finished.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            writer.join(5000)
+            assertFalse(ReprocessInFlightDirectories.isProtected(output))
+            root.deleteRecursively()
+        }
+    }
+
 }
