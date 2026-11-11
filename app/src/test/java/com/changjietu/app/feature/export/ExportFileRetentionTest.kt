@@ -65,27 +65,28 @@ class ExportFileRetentionTest {
         val dir = tmp.newFolder("race")
         val file = File(dir, "01.jpg").apply { writeText("sample") }
         dir.setLastModified(now - 48L * 3600_000)
-        val checked = java.util.concurrent.CountDownLatch(1)
-        val leaseReady = java.util.concurrent.CountDownLatch(1)
-        val lease = arrayOfNulls<AutoCloseable>(1)
+        val started = java.util.concurrent.CountDownLatch(1)
+        val finished = java.util.concurrent.CountDownLatch(1)
+        val failure = arrayOfNulls<Throwable>(1)
         val reader = Thread {
-            checked.await()
-            lease[0] = guard.acquire(listOf(file))
-            leaseReady.countDown()
+            started.await()
+            try { guard.acquire(listOf(file)).close() }
+            catch (e: Throwable) { failure[0] = e }
+            finally { finished.countDown() }
         }
         reader.start()
         try {
-            // The old check-then-delete path permits a new lease between these operations.
-            assertFalse(guard.prune(dir, 9, 3) {
-                checked.countDown()
-                assertTrue(leaseReady.await(3, java.util.concurrent.TimeUnit.SECONDS))
+            assertTrue(guard.prune(dir, 9, 3) {
+                started.countDown()
+                // A new reader cannot acquire a lease between approval and deletion.
+                assertFalse(finished.await(150, java.util.concurrent.TimeUnit.MILLISECONDS))
             })
-            assertTrue(file.exists())
+            assertFalse(file.exists())
+            assertTrue(finished.await(3, java.util.concurrent.TimeUnit.SECONDS))
+            assertTrue(failure[0] is IllegalArgumentException)
         } finally {
-            checked.countDown()
+            started.countDown()
             reader.join(3000)
-            lease[0]?.close()
         }
     }
-
 }
