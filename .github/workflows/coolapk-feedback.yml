@@ -1,0 +1,56 @@
+name: Coolapk single-post feedback intake
+
+on:
+  repository_dispatch:
+    types: [coolapk-feedback]
+  workflow_dispatch:
+    inputs:
+      feedback_json:
+        description: 'Normalized feedback JSON (manual test only)'
+        required: true
+        type: string
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/coolapk-feedback.yml"
+      - "tools/feedback/**"
+
+concurrency:
+  group: coolapk-feedback-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Offline tests
+        run: python -m unittest discover -s tools/feedback -p 'test_coolapk_bridge.py' -v
+
+  intake:
+    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate single-post origin and deduplicate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          COOLAPK_TARGET_FEED_ID: ${{ vars.COOLAPK_TARGET_FEED_ID }}
+        run: |
+          python tools/feedback/coolapk_bridge.py intake \
+            --event "$GITHUB_EVENT_PATH" \
+            --event-name "$GITHUB_EVENT_NAME"

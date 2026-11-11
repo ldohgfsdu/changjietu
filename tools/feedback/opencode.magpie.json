@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "magpie/coder",
+  "providers": {
+    "magpie": {
+      "name": "Magpie Compatible Gateway",
+      "env": ["MAGPIE_API_KEY"],
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "{env:MAGPIE_BASE_URL}"
+      },
+      "models": {
+        "coder": {
+          "name": "Coding model via Magpie",
+          "modelID": "{env:MAGPIE_MODEL_ID}"
+        }
+      }
+    }
+  }
+}

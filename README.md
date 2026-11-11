@@ -21,6 +21,16 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
 
+## 反馈渠道（酷安集中帖试点）
+
+计划通过**一条酷安长期反馈帖**集中收集 Bug 与功能建议。用户在原帖评论，内部自动化负责按评论去重归档为私有 GitHub Issue；该入口尚未公布，只有正式发帖后才会填写链接。
+
+- [可直接发布的酷安主帖与回复文案](docs/COOLAPK_FEEDBACK_POST.md)
+- [GitHub 反馈接收器与授权操作](docs/COOLAPK_FEEDBACK_OPERATIONS.md)
+- [接收器技术说明](docs/COOLAPK_FEEDBACK_PILOT.md)
+
+**当前状态**：GitHub 接收器及受控 Agent 工作流准备中；酷安自动读取、酷安自动回复和外部发布均未启用。不要在 Issue 中放入用户 Cookie、Token 或未脱敏截图。仓库是私有仓库，不应把内部 Release/Issue 链接当作公开下载或反馈入口。
+
 ## 功能
 
 | 能力 | 说明 |
