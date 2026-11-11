@@ -44,12 +44,21 @@
 
 ---
 
+## v0.2.16：手柄命中与无意义重切修正
+
+- 主界面和精细切线页使用 48dp 手指命中目标，视觉仍为 38dp 圆点。
+- 初始点按、最终位置回到原点时不触发 re-encode；取消拖动恢复预览。
+- 纯 Kotlin 像素映射单测 4 项，静态 UI 契约检查 1 项。真机手势、误触、滚动冲突尚未确认，不能声称已完成真机 UX 验收。
+- 完整 Android、Lint、形式化与签名 APK 发布是强制门禁。
+
+---
+
 ## 1. 当前版本
 
 | 项 | 值 | 证据 |
 |----|-----|------|
-| versionName | **0.2.15** | `app/build.gradle.kts` |
-| versionCode | **17** | 同上 |
+| versionName | **0.2.16** | `app/build.gradle.kts` |
+| versionCode | **18** | 同上 |
 | applicationId | `com.changjietu.app` | 同上 |
 | Adopted covenant | **1.0.0** | `AGENTS.md` |
 
