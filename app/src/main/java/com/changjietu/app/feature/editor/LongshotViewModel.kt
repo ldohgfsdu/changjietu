@@ -780,11 +780,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             } finally {
-                try {
-                    ReprocessOutputLifecycle.cleanupIfUncommitted(outputDirectory, committed)
-                } finally {
-                    outputDirectory?.let(ReprocessInFlightDirectories::release)
-                }
+                ReprocessOutputLifecycle.finish(outputDirectory, committed)
             }
         }
     }
