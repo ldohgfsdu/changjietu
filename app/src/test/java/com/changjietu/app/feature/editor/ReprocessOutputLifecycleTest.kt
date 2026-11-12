@@ -57,14 +57,17 @@ class ReprocessOutputLifecycleTest {
             assertNotSame("recursive cleanup ran on the caller (UI) thread", callerThread, cleanupThread.get())
             assertTrue("writer protection lost before cleanup", ReprocessInFlightDirectories.isProtected(dir))
             job.cancel()
+            allowCleanup.countDown()
+            job.join()
+            assertFalse("cancelled cleanup left files behind", dir.exists())
+            assertFalse("writer protection was leaked", ReprocessInFlightDirectories.isProtected(dir))
         } finally {
             allowCleanup.countDown()
+            job.cancel()
             job.join()
             ReprocessInFlightDirectories.release(dir)
             root.deleteRecursively()
         }
-        assertFalse("cancelled cleanup left files behind", dir.exists())
-        assertFalse("writer protection was leaked", ReprocessInFlightDirectories.isProtected(dir))
     }
 
     @Test fun adoptedOutputSurvivesCleanupAndRegistrationIsReleased() = runBlocking {
