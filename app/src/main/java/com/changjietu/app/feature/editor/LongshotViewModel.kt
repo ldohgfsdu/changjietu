@@ -593,9 +593,10 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             ?.sortedByDescending { it.name }
             ?: return
         entries.forEachIndexed { rank, entry ->
-            if (ReprocessInFlightDirectories.isProtected(entry)) return@forEachIndexed
             if (visible.any { fileRetention.covers(entry, it) }) return@forEachIndexed
-            fileRetention.prune(entry, rank, keep)
+            ReprocessInFlightDirectories.pruneIfUnprotected(entry) {
+                fileRetention.prune(entry, rank, keep)
+            }
         }
     }
 
