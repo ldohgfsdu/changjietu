@@ -76,6 +76,7 @@ fun PreviewCutEditor(
     uncertainCutEnds: Set<Int> = emptySet(),
     onPreviewCut: (Int, Int) -> Unit,
     onAddCutPoint: (Int) -> Unit,
+    onDeleteCutPoint: (Int) -> Unit,
     onClearManualCuts: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -100,7 +101,7 @@ fun PreviewCutEditor(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            "拖 ⇅ 调整切点 · 长按长图新增切入点",
+            "拖动手柄调整切线，长按图片新增切线",
             color = MiuixTheme.colorScheme.onSurfaceSecondary,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             fontSize = 12.sp,
@@ -170,20 +171,21 @@ fun PreviewCutEditor(
                             "上一条",
                             fontSize = 14.sp,
                             color = if (canPrevious) MiuixTheme.colorScheme.primary
-                                else MiuixTheme.colorScheme.onSurfaceSecondary,
+                                else MiuixTheme.colorScheme.onSurfaceSecondary.copy(alpha = 0.38f),
                         )
                     }
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
+                            .border(1.dp, MiuixTheme.colorScheme.outline, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                             .clickable(enabled = cuts.isNotEmpty(), onClickLabel = "定位当前切线") {
                                 jumpTo(selectedCutIndex, viewHeightPx, viewportHeightPx)
                             },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条 · 定位",
+                            if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条  定位",
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         )
@@ -203,7 +205,7 @@ fun PreviewCutEditor(
                             "下一条",
                             fontSize = 14.sp,
                             color = if (canNext) MiuixTheme.colorScheme.primary
-                                else MiuixTheme.colorScheme.onSurfaceSecondary,
+                                else MiuixTheme.colorScheme.onSurfaceSecondary.copy(alpha = 0.38f),
                         )
                     }
                 }
@@ -293,11 +295,11 @@ fun PreviewCutEditor(
                         val startValueState = rememberUpdatedState(end)
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopCenter)
+                                .align(Alignment.TopEnd)
                                 .offset {
                                     val top = ((contentTop + end).toFloat() / sourceHeight * viewHeightPx - handleSizePx / 2f)
                                         .coerceIn(0f, (viewHeightPx - handleSizePx).coerceAtLeast(0f))
-                                    IntOffset(0, top.roundToInt())
+                                    IntOffset(-4.dp.roundToPx(), top.roundToInt())
                                 }
                                 // Target is 48dp, dot stays 38dp.
                                 .size(HANDLE_TOUCH_SIZE)
@@ -331,7 +333,7 @@ fun PreviewCutEditor(
                             ) {
                                 Icon(
                                     MiuixIcons.ArrowUpDown,
-                                    contentDescription = "拖动调整切点",
+                                    contentDescription = "拖动调整切线",
                                     tint = Color.White,
                                     modifier = Modifier.size(20.dp),
                                 )
@@ -352,7 +354,18 @@ fun PreviewCutEditor(
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceSecondary,
             )
-            if (manualActive) TextButton(text = "恢复自动", onClick = onClearManualCuts)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (cuts.isNotEmpty()) {
+                    TextButton(
+                        text = "删除当前切线",
+                        onClick = {
+                            onDeleteCutPoint(selectedCutIndex)
+                            selectedCutIndex = (selectedCutIndex - 1).coerceAtLeast(0)
+                        },
+                    )
+                }
+                if (manualActive) TextButton(text = "恢复自动", onClick = onClearManualCuts)
+            }
         }
     }
 }
