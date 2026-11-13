@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - master
-      - "fix/**"
-      - "release/**"
     tags:
       - "v*"
   pull_request:
@@ -23,8 +21,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: android-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Only supersede obsolete PR checks; every master commit and release must finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
