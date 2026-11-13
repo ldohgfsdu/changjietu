@@ -53,6 +53,18 @@ class UiLayoutScreenshotContractTest {
         assertTrue(editor.contains(".height(48.dp).padding(horizontal = 8.dp)"))
     }
 
+    @Test fun userFacingScreensAvoidMiddleDotSeparators() {
+        val separator = 0x00B7.toChar()
+        listOf(
+            "feature/editor/PreviewCutEditor.kt",
+            "feature/editor/ProcessScreen.kt",
+            "feature/editor/PreviewScreen.kt",
+            "feature/importui/HomeScreen.kt",
+        ).forEach { screen ->
+            assertFalse("Avoid middle-dot punctuation in $screen", read(screen).contains(separator))
+        }
+    }
+
     @Test fun bothEditorsHaveLargeTouchTargetButOriginalVisualDiameter() {
         val main = read("feature/editor/OverviewEditor.kt")
         val precise = read("feature/editor/PreviewCutEditor.kt")
