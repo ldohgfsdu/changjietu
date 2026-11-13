@@ -91,4 +91,38 @@ class ExportFileRetentionTest {
             reader.join(3000)
         }
     }
+
+    @Test fun sharedSliceDirectoryExpiresAtExact24HourBoundaryAfterProcessRecreation() {
+        var now = 9_000_000_000L
+        val grace = 24L * 3600_000
+        val dir = tmp.newFolder("shared_boundary")
+        val file = File(dir, "01.jpg").apply { writeText("sample") }
+        dir.setLastModified(now - 48L * 3600_000)
+        ExportFileRetention(clock = { now }).markShared(listOf(file))
+        val recreated = ExportFileRetention(clock = { now })
+        now += grace - 1
+        assertFalse(recreated.canPrune(dir, 5, 3))
+        assertTrue(file.exists())
+        now += 1
+        assertTrue(recreated.canPrune(dir, 5, 3))
+    }
+
+    @Test fun resharingArchiveRenewsGracePeriodAfterProcessRecreation() {
+        var now = 10_000_000_000L
+        val grace = 24L * 3600_000
+        val dir = tmp.newFolder("zip_renewal")
+        val archive = File(dir, "shared.zip").apply {
+            writeText("zip")
+            setLastModified(now - 48L * 3600_000)
+        }
+        val guard = ExportFileRetention(clock = { now })
+        guard.markShared(listOf(archive))
+        now += grace - 1
+        guard.markShared(listOf(archive))
+        val recreated = ExportFileRetention(clock = { now })
+        now += 1
+        assertFalse(recreated.canPrune(archive, 5, 3))
+        now += grace - 1
+        assertTrue(recreated.canPrune(archive, 5, 3))
+    }
 }
