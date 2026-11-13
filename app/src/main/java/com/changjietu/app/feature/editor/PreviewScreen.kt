@@ -296,7 +296,7 @@ fun PreviewScreen(
                         maxLines = 1,
                     )
                     Text(
-                        "${ed.source.width} × ${ed.source.height} · 已选 ${ed.selectedIndices.size}/${ed.slices.size}",
+                        "${ed.source.width} × ${ed.source.height}，已选 ${ed.selectedIndices.size}/${ed.slices.size}",
                         fontSize = 12.sp,
                         color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         maxLines = 1,
@@ -667,7 +667,7 @@ private fun SlicePreviewDialog(
                         },
                     )
                     Text(
-                        "${slice.width} × ${slice.height} px · 上下滑动查看",
+                        "${slice.width} × ${slice.height} px，滑动查看",
                         fontSize = 12.sp,
                         color = MiuixTheme.colorScheme.onSurfaceSecondary,
                         maxLines = 1,

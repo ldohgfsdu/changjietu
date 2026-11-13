@@ -225,7 +225,7 @@ fun ProcessScreen(
                     }
                 }
                 Text(
-                    "预计 $sliceCount 张切片 · 保持原始尺寸",
+                    "预计 $sliceCount 张切片，保持原始尺寸",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -646,7 +646,7 @@ private fun MoreOptions(
                 onCheckedChange = { checked -> onChange { it.copy(drawBadge = checked) } },
             )
             Text(
-                if (settings.overlap == 0) "当前裁切设置：严格按线分割 · 无重叠 · 自动编号" else "当前裁切设置：重叠 ${settings.overlap}px · 自动编号",
+                if (settings.overlap == 0) "当前裁切设置：严格按线分割，无重叠，自动编号" else "当前裁切设置：重叠 ${settings.overlap}px，自动编号",
                 fontSize = 13.sp,
                 color = caption,
                 modifier = Modifier.padding(vertical = 6.dp),
@@ -836,6 +836,6 @@ private fun marginSummary(
         else "已关闭，不裁边；手动数值已保留但不会应用"
     val m = SafeCropMargins.effective(cropEnabled, src.margins, manualMargins)
     if (m.isEmpty()) return "当前没有裁边；左右边缘保留"
-    val detail = "左 ${m.left} · 右 ${m.right} · 上 ${m.top} · 下 ${m.bottom} px"
+    val detail = "左 ${m.left}，右 ${m.right}，上 ${m.top}，下 ${m.bottom} px"
     return "实际将裁掉 $detail（左右只在手动设置后生效）"
 }

@@ -255,7 +255,7 @@ private fun RecentRow(
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    "${fmt.format(Date(item.timestamp))} · ${item.sliceCount} 张切片",
+                    "${fmt.format(Date(item.timestamp))}，${item.sliceCount} 张切片",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,

@@ -33,7 +33,7 @@ class UiLayoutScreenshotContractTest {
         assertTrue("previous and next remain accessible", nav.contains(".width(72.dp)"))
         assertTrue("navigation touch targets remain at least 44dp", nav.contains(".height(44.dp)"))
         assertFalse("center locator must not look like a giant boxed input", nav.contains(".border("))
-        assertTrue("center locator must show a compact counter and action", nav.contains("· 定位"))
+        assertTrue("center locator must show a compact counter and action", nav.contains(" 定位"))
         assertTrue("jump geometry must account for its actual height",
             editor.contains("(maxHeight - 48.dp).toPx()"))
         assertTrue(nav.contains("Text(\n                            \"上一条\""))
@@ -51,6 +51,18 @@ class UiLayoutScreenshotContractTest {
         assertTrue(editor.contains("红色：未找到可靠空白"))
         assertTrue(editor.contains("蓝色：候选空白"))
         assertTrue(editor.contains(".height(48.dp).padding(horizontal = 8.dp)"))
+    }
+
+    @Test fun userFacingScreensAvoidMiddleDotSeparators() {
+        val separator = 0x00B7.toChar()
+        listOf(
+            "feature/editor/PreviewCutEditor.kt",
+            "feature/editor/ProcessScreen.kt",
+            "feature/editor/PreviewScreen.kt",
+            "feature/importui/HomeScreen.kt",
+        ).forEach { screen ->
+            assertFalse("Avoid middle-dot punctuation in $screen", read(screen).contains(separator))
+        }
     }
 
     @Test fun bothEditorsHaveLargeTouchTargetButOriginalVisualDiameter() {
