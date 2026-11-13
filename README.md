@@ -13,6 +13,8 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 5. **系统分享入口**，相册一点分享即可处理
 6. **分块解码**，避免超长图 OOM
 
+> 下列 v0.2.17 至 v0.2.14 条目为历史更新说明，并非最新版本公告。
+
 ## v0.2.17 精细切线视口稳定性
 
 - 固定风险提示与手动调整状态区域，避免切换红/蓝切线或首次拖动时挤压长图视口。
@@ -49,7 +51,7 @@ Android 本地工具：长截图质量检测 → 按屏幕分辨率智能切片 
 ## 状态
 
 - 规格：[`GOAL.md`](./GOAL.md)（含 v0.2 增量）
-- 版本：`0.2.17`（versionCode 19；发布状态以 GitHub Releases 为准）
+- 版本：以 [app/build.gradle.kts](app/build.gradle.kts) 为唯一代码版本来源；最新正式安装包以 [GitHub Releases](https://github.com/ldohgfsdu/changjietu/releases) 为准。
 - 包名：`com.changjietu.app`
 - 当前交付：Release APK（R8 minify + resource shrink + 本地 Release 签名）
 - 验证入口：GitHub Actions 执行 `testDebugUnitTest`、`assembleDebug`、`lintDebug`、`lintVitalRelease`；发布流程另验证 Release 构建、签名连续性与 SHA-256。**未完成 Android 真机交互验收**。
