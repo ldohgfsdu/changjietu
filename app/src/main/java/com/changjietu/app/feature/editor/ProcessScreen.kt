@@ -315,6 +315,7 @@ fun ProcessScreen(
                 uncertainCutEnds = uncertainCuts.toSet(),
                 onCutPreview = viewModel::previewManualCut,
                 onAddCutPoint = viewModel::addManualCutPoint,
+                onDeleteCutPoint = viewModel::deleteManualCutPoint,
                 onClearManualCuts = viewModel::clearManualCuts,
                 onDismiss = { expanded = false },
             )
@@ -778,6 +779,7 @@ private fun CutPreviewDialog(
     uncertainCutEnds: Set<Int>,
     onCutPreview: (Int, Int) -> Unit,
     onAddCutPoint: (Int) -> Unit,
+    onDeleteCutPoint: (Int) -> Unit,
     onClearManualCuts: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -810,6 +812,7 @@ private fun CutPreviewDialog(
                         uncertainCutEnds = uncertainCutEnds,
                         onPreviewCut = onCutPreview,
                         onAddCutPoint = onAddCutPoint,
+                        onDeleteCutPoint = onDeleteCutPoint,
                         onClearManualCuts = onClearManualCuts,
                         modifier = Modifier
                             .weight(1f)
