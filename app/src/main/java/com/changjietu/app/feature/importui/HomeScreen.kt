@@ -101,7 +101,7 @@ fun HomeScreen(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "原尺寸裁切，不缩放图片。",
+                        "原尺寸裁切，支持相册导入和应用分享",
                         fontSize = 14.sp,
                         color = caption,
                     )
@@ -113,12 +113,7 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
                 ) {
-                    Text(
-                        "支持相册导入，或从其他 App 分享",
-                        fontSize = 14.sp,
-                        color = caption,
-                    )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(4.dp))
                     Button(
                         onClick = {
                             picker.launch(
@@ -276,6 +271,7 @@ private fun RecentRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            Text("›", fontSize = 22.sp, color = caption)
         }
     }
 }
