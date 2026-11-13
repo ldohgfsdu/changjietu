@@ -31,6 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Release baseline regression and consistency check
+        run: |
+          python3 -m unittest discover -s tools/tests -p 'test_release_baseline.py' -v
+          python3 tools/check_release_baseline.py
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
