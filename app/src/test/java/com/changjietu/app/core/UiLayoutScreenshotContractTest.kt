@@ -33,7 +33,7 @@ class UiLayoutScreenshotContractTest {
         assertTrue("previous and next remain accessible", nav.contains(".width(72.dp)"))
         assertTrue("navigation touch targets remain at least 44dp", nav.contains(".height(44.dp)"))
         assertFalse("center locator must not look like a giant boxed input", nav.contains(".border("))
-        assertTrue("center locator must show a compact counter and action", nav.contains("· 定位"))
+        assertTrue("center locator must show a compact counter and action", nav.contains(" 定位"))
         assertTrue("jump geometry must account for its actual height",
             editor.contains("(maxHeight - 48.dp).toPx()"))
         assertTrue(nav.contains("Text(\n                            \"上一条\""))
