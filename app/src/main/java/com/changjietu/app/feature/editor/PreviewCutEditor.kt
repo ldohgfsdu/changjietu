@@ -181,7 +181,7 @@ fun PreviewCutEditor(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            if (cuts.isEmpty()) "无切线" else "${selectedCutIndex + 1}/${cuts.size} · 定位",
+                            if (cuts.isEmpty()) "无切线" else "${selectedCutIndex + 1}/${cuts.size} 定位",
                             fontSize = 13.sp,
                             color = if (cuts.isNotEmpty()) MiuixTheme.colorScheme.primary
                                 else MiuixTheme.colorScheme.onSurfaceSecondary,
