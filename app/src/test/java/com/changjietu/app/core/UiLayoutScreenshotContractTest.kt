@@ -27,17 +27,30 @@ class UiLayoutScreenshotContractTest {
 
     @Test fun cutNavigatorProvidesVisibleTextAndDirectLocate() {
         val editor = read("feature/editor/PreviewCutEditor.kt")
-        val nav = editor.substringAfter("// 实机 v0.2.6 证明自定义箭头图标不可见。")
+        val nav = editor.substringAfter("// Keep legible text actions; no decorative locator outline.")
             .substringBefore("\n\n                Box(\n                    modifier = Modifier")
-        assertTrue(nav.contains(".height(52.dp)"))
-        assertTrue(nav.contains(".width(78.dp)"))
-        assertTrue(nav.contains(".height(48.dp)"))
+        assertTrue("navigation should take only 48dp", nav.contains(".height(48.dp)"))
+        assertTrue("previous and next remain accessible", nav.contains(".width(72.dp)"))
+        assertTrue("navigation touch targets remain at least 44dp", nav.contains(".height(44.dp)"))
+        assertFalse("center locator must not look like a giant boxed input", nav.contains(".border("))
+        assertTrue("center locator must show a compact counter and action", nav.contains("· 定位"))
+        assertTrue("jump geometry must account for its actual height",
+            editor.contains("(maxHeight - 48.dp).toPx()"))
         assertTrue(nav.contains("Text(\n                            \"上一条\""))
         assertTrue(nav.contains("Text(\n                            \"下一条\""))
         assertTrue(nav.contains("onClickLabel = \"定位当前切线\""))
         assertTrue(nav.contains("jumpTo(selectedCutIndex, viewHeightPx, viewportHeightPx)"))
         assertFalse(nav.contains("AppIcons.Chevron"))
         assertFalse(nav.contains("TextButton("))
+    }
+
+    @Test fun preciseEditorDoesNotReserveAnEmpty48dpWarningPanel() {
+        val editor = read("feature/editor/PreviewCutEditor.kt")
+        assertFalse(editor.contains("Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterStart)"))
+        assertTrue(editor.contains("拖动切线调整，长按图片添加"))
+        assertTrue(editor.contains("红色：未找到可靠空白"))
+        assertTrue(editor.contains("蓝色：候选空白"))
+        assertTrue(editor.contains(".height(48.dp).padding(horizontal = 8.dp)"))
     }
 
     @Test fun bothEditorsHaveLargeTouchTargetButOriginalVisualDiameter() {
