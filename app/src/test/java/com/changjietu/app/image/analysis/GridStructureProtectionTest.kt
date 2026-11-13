@@ -69,6 +69,34 @@ class GridStructureProtectionTest {
         for (i in 1 until plan.ranges.size) assertEquals(plan.ranges[i - 1].last + 1, plan.ranges[i].first)
     }
 
+    @Test fun unrelated_vertical_borders_do_not_make_entire_page_unsafe() {
+        val detector = GridStructureProtection(height = 400, sampledWidth = 320)
+        for (y in 0 until 400) {
+            val row = IntArray(320) { 0xFFFFFFFF.toInt() }
+            for (x in listOf(25, 150, 290)) row[x] = 0xFF222222.toInt()
+            detector.acceptRow(row, 0, y, y + 1)
+        }
+        assertTrue("Three vertical guides are not a multi-column table", detector.protectedRows().none { it })
+    }
+
+    @Test fun no_gap_inside_oversize_table_is_reported_as_unresolved() {
+        val height = 5000
+        val energy = FloatArray(height) { 0.1f }
+        val protected = BooleanArray(height) { it in 300 until 4700 }
+        val plan = SplitPointDetector.plan(
+            contentHeight = height,
+            targetSliceHeight = 2200,
+            overlap = 0,
+            rowEnergy = energy,
+            protectedRows = protected,
+        )
+        val cuts = plan.ranges.dropLast(1).map { it.last + 1 }
+        assertTrue(cuts.isNotEmpty())
+        assertTrue("Cannot claim a chart spanning more than one slice is automatically safe",
+            SplitPointDetector.uncertainCuts(cuts, energy, protectedRows = protected).isNotEmpty())
+        assertEquals(height - 1, plan.ranges.last().last)
+    }
+
     @Test fun ordinary_text_without_long_parallel_edges_is_not_misclassified() {
         val detector = GridStructureProtection(height = 400, sampledWidth = 320)
         for (y in 0 until 400) {
