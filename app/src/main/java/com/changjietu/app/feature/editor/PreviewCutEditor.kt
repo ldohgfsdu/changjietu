@@ -109,8 +109,8 @@ fun PreviewCutEditor(
         Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterStart) {
             Text(
                 if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
-                    "红色切线：可能截断文字或表格，请手动检查"
-                else "蓝色切线：仍需检查图片和表格是否完整",
+                    "红色：当前位置缺少可靠空白，请继续调整"
+                else "蓝色：检测到空白，仍需确认图表完整",
                 color = if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
                     UncertainLineColor else MiuixTheme.colorScheme.onSurfaceSecondary,
                 modifier = Modifier.padding(horizontal = 4.dp),
