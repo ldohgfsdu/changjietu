@@ -22,4 +22,23 @@ class ReprocessCleanupSchedulingContractTest {
             source.contains("ReprocessOutputLifecycle.finish(outputDirectory, committed)"),
         )
     }
+
+    @Test fun clearingSourceInvalidatesAllManualEditorAndDetailState() {
+        val relative = "src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
+        val source = listOf(File(relative), File("app", relative)).first { it.isFile }.readText()
+        val clear = source.substringAfter("fun clearSource() {").substringBefore("\n    private fun resetPreview()")
+        for (statement in listOf(
+            "sourceGeneration++",
+            "reprocessJob?.cancel()",
+            "_source.value = null",
+            "_editor.value = null",
+            "_manualCuts.value = null",
+            "_manualMargins.value = null",
+            "detailJob?.cancel()",
+            "_detailOverview.value = null",
+            "resetPreview()",
+        )) {
+            assertTrue("clearSource must invalidate $statement", clear.contains(statement))
+        }
+    }
 }
