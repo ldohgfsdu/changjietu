@@ -20,7 +20,8 @@ class GridStructureProtection(
 ) {
     init { require(height > 0 && sampledWidth > 1) }
     private val sampleWidth = sampledWidth
-    private val binSize = 3
+    // Merge close edges of the *same* vertical rule into one evidence column.
+    private val binSize = 8
     private val bins = (sampledWidth + binSize - 1) / binSize
     private val activeStart = IntArray(bins) { -1 }
     private val activeEnd = IntArray(bins)
@@ -36,11 +37,15 @@ class GridStructureProtection(
         if (count <= 1) return
 
         var lastLuma = luminance(pixels[offset])
+        var lastMarkedX = -100
         for (x in 1 until count) {
             val luma = luminance(pixels[offset + x])
             // Downsampling weakens 1–2 px grey borders. Requiring a long run and
             // four distinct x-bins reduces false positives from ordinary text.
-            if (abs(luma - lastLuma) >= 8) visible[x / binSize] = true
+            if (abs(luma - lastLuma) >= 8 && x - lastMarkedX >= 7) {
+                visible[x / binSize] = true
+                lastMarkedX = x
+            }
             lastLuma = luma
         }
         for (bin in 0 until bins) {
