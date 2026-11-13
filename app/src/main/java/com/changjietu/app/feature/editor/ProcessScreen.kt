@@ -110,6 +110,9 @@ fun ProcessScreen(
                 SplitPointDetector.uncertainCuts(
                     p.cutEnds.dropLast(1),
                     src.rowEnergy.copyOfRange(first, last),
+                    protectedRows = src.protectedSeamRows
+                        .takeIf { it.size >= last }
+                        ?.copyOfRange(first, last),
                 )
             }
         }
