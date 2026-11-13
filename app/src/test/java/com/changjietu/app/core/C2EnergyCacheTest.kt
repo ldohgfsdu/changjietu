@@ -113,8 +113,9 @@ class C2EnergyCacheTest {
         val analyzeBody = text.subList(analyzeStart, analyzeEnd).joinToString("\n")
 
         // analyze 扫描一次；process 不再扫描，改读缓存
-        assertTrue("analyze must scan energy once", analyzeBody.contains("computeEnergyMaps"))
-        assertTrue("process must not scan again", !processBody.contains("computeEnergyMaps"))
+        assertTrue("analyze must scan energy and grid structure once", analyzeBody.contains("computeAnalysisMaps"))
+        assertTrue("process must not scan again", !processBody.contains("computeAnalysisMaps") && !processBody.contains("computeEnergyMaps"))
+        assertTrue("process must reuse cached grid protection", processBody.contains("srcInfo.protectedSeamRows"))
         assertTrue("process must reuse cached rowEnergy", processBody.contains("srcInfo.rowEnergy"))
         assertTrue("process must reuse cached columnEnergy", processBody.contains("srcInfo.columnEnergy"))
     }
