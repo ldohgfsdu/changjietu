@@ -38,6 +38,7 @@ object SplitPointDetector {
         minSlices: Int = 1,
         maxSlices: Int = 400,
         minGapHeight: Int = 6,
+        protectedRows: BooleanArray? = null,
     ): SplitPlan {
         require(contentHeight > 0)
         val target = targetSliceHeight.coerceIn(400, 8000)
@@ -63,6 +64,9 @@ object SplitPointDetector {
             )
         } else {
             require(rowEnergy.size >= contentHeight) { "rowEnergy too short" }
+            require(protectedRows == null || protectedRows.size >= contentHeight) {
+                "protectedRows too short"
+            }
             energyAwareRanges(
                 contentHeight = contentHeight,
                 target = target,
@@ -71,6 +75,7 @@ object SplitPointDetector {
                 searchWindow = searchWindow,
                 maxSlices = hardMax,
                 minGapHeight = minGapHeight,
+                protectedRows = protectedRows,
             )
         }
 
@@ -213,10 +218,11 @@ object SplitPointDetector {
         searchWindow: Int,
         maxSlices: Int,
         minGapHeight: Int,
+        protectedRows: BooleanArray?,
     ): List<IntRange> {
         val smoothed = smooth(rowEnergy, contentHeight, radius = 2)
         val threshold = contentThreshold(smoothed, contentHeight)
-        val gaps = findGaps(smoothed, contentHeight, threshold, minGapHeight)
+        val gaps = findGaps(smoothed, contentHeight, threshold, minGapHeight, protectedRows)
         val effectiveWindow = max(searchWindow, (target * 0.12f).toInt()).coerceIn(160, 360)
 
         val cuts = mutableListOf<Int>()
@@ -230,7 +236,12 @@ object SplitPointDetector {
             }
             val maxCut = (cursor + target).coerceAtMost(contentHeight)
             // 下限：既避免碎片，也保证与上一片有实质重叠空间。
-            val minAdvance = max(MIN_ADVANCE_FLOOR, max(ov + 80, (target * 0.55f).toInt()))
+            // If a table spans the ordinary 55%-to-target interval, allow an
+            // earlier genuine paragraph gap rather than forcing a seam into it.
+            val chartNearTarget = protectedRows != null &&
+                ((cursor + (target * 0.55f).toInt())..maxCut).any { protectedRows[it] }
+            val preferredFraction = if (chartNearTarget) 0.25f else 0.55f
+            val minAdvance = max(MIN_ADVANCE_FLOOR, max(ov + 80, (target * preferredFraction).toInt()))
                 .coerceAtMost(target - 1)
             val minCut = (cursor + minAdvance).coerceAtMost(maxCut - 1).coerceAtLeast(cursor + 1)
             val ideal = maxCut
@@ -249,8 +260,9 @@ object SplitPointDetector {
             )
             // Without an identified gap, still produce a lossless full-coverage
             // geometric split; the editor will explicitly warn about uncertainty.
-            val cut = (gapCut ?: findLowestEnergyY(smoothed, safeStart, safeEnd, ideal))
-                .coerceIn(safeStart, safeEnd)
+            val cut = (gapCut ?: lowestOutsideProtected(
+                smoothed, protectedRows, safeStart, safeEnd, ideal,
+            )).coerceIn(safeStart, safeEnd)
 
             cuts.add(cut)
             val next = (cut - ov).coerceAtLeast(cursor + 1)
@@ -307,6 +319,7 @@ object SplitPointDetector {
         cutEnds: List<Int>,
         rowEnergy: FloatArray,
         minGapHeight: Int = 6,
+        protectedRows: BooleanArray? = null,
     ): List<Int> {
         if (cutEnds.isEmpty()) return emptyList()
         if (rowEnergy.isEmpty()) return cutEnds
@@ -316,11 +329,38 @@ object SplitPointDetector {
             rowEnergy.size,
             contentThreshold(smoothed, rowEnergy.size),
             minGapHeight,
+            protectedRows,
         )
         return cutEnds.filter { cut ->
             cut !in 1 until rowEnergy.size ||
                 gaps.none { gap -> cut >= gap.first + 2 && cut <= gap.last - 1 }
         }
+    }
+
+    /**
+     * When every low-energy row is inside an image grid, prefer an outside
+     * location even if not proven blank. The caller still flags it uncertain.
+     */
+    private fun lowestOutsideProtected(
+        energy: FloatArray,
+        protectedRows: BooleanArray?,
+        lo: Int,
+        hi: Int,
+        ideal: Int,
+    ): Int {
+        if (protectedRows == null) return findLowestEnergyY(energy, lo, hi, ideal)
+        var bestY = -1
+        var bestScore = Float.MAX_VALUE
+        for (y in lo..hi) {
+            if (protectedRows[y]) continue
+            val dist = abs(y - ideal).toFloat()
+            val score = energy[y] + dist * 0.01f
+            if (score < bestScore) {
+                bestScore = score
+                bestY = y
+            }
+        }
+        return if (bestY >= 0) bestY else findLowestEnergyY(energy, lo, hi, ideal)
     }
 
     /** 在窗口内选一个位于空白带中的切点；没有合格空白带则返回 null。 */
@@ -461,11 +501,12 @@ object SplitPointDetector {
         height: Int,
         threshold: Float,
         minGapHeight: Int,
+        protectedRows: BooleanArray? = null,
     ): List<IntRange> {
         val gaps = mutableListOf<IntRange>()
         var runStart = -1
         for (y in 0 until height) {
-            if (energy[y] <= threshold) {
+            if (energy[y] <= threshold && protectedRows?.getOrNull(y) != true) {
                 if (runStart < 0) runStart = y
             } else if (runStart >= 0) {
                 if (y - runStart >= minGapHeight) gaps.add(runStart until y)
