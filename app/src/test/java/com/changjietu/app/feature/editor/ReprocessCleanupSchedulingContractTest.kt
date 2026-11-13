@@ -45,7 +45,7 @@ class ReprocessCleanupSchedulingContractTest {
         val relative = "src/main/java/com/changjietu/app/feature/editor/LongshotViewModel.kt"
         val source = listOf(File(relative), File("app", relative)).first { it.isFile }.readText()
         val open = source.substringAfter("fun openUri(uri: Uri, source: UriAccessSource, flags: Int = 0) {")
-            .substringBefore("\n    fun ", missingDelimiterValue = source.substringAfter("fun openUri(uri: Uri, source: UriAccessSource, flags: Int = 0) {"))
+            .substringBefore("private fun tryPersistRead(uri: Uri)")
         for (statement in listOf("detailJob?.cancel()", "detailJob = null", "_detailOverview.value = null")) {
             assertTrue("New source must invalidate stale detail state: $statement", open.contains(statement))
         }
