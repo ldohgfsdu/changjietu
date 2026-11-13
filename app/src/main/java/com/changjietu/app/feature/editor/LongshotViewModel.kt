@@ -433,7 +433,10 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         val source = cr.openInputStream(uri)?.use { BitmapRegionSource.open(it) }
             ?: error("无法创建区域解码器（格式可能不受支持）")
         source.use { src ->
-            val (colE, rowE) = RegionDecoderUtil.computeEnergyMaps(src)
+            val analysis = RegionDecoderUtil.computeAnalysisMaps(src)
+            val colE = analysis.columnEnergy
+            val rowE = analysis.rowEnergy
+            val protectedSeams = analysis.protectedSeamRows
             val glyph = RegionDecoderUtil.estimateGlyphHeight(rowE)
             val quality = QualityAnalyzer.analyze(w, h, glyph.takeIf { it > 0f })
             val margins = MarginDetector.detect(w, h, colE, rowE)
@@ -444,6 +447,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 targetSliceHeight = s.targetHeight,
                 overlap = s.overlap,
                 rowEnergy = rowE.copyOfRange(margins.top, margins.top + contentH),
+                protectedRows = protectedSeams.copyOfRange(margins.top, margins.top + contentH),
             )
             return SourceInfo(
                 uri = uri,
@@ -454,6 +458,7 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                 estimatedSlices = plan.sliceCount,
                 columnEnergy = colE,
                 rowEnergy = rowE,
+                protectedSeamRows = protectedSeams,
             )
         }
     }
@@ -558,6 +563,9 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
                     targetSliceHeight = s.targetHeight,
                     overlap = s.overlap,
                     rowEnergy = contentEnergy,
+                    protectedRows = srcInfo.protectedSeamRows
+                        .takeIf { it.size >= margins.top + contentH }
+                        ?.copyOfRange(margins.top, margins.top + contentH),
                 )
             }
             if (s.overlap == 0) {
@@ -976,6 +984,9 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
             targetSliceHeight = settings.targetHeight,
             overlap = settings.overlap,
             rowEnergy = contentEnergy,
+            protectedRows = src.protectedSeamRows
+                .takeIf { it.size >= margins.top + contentH }
+                ?.copyOfRange(margins.top, margins.top + contentH),
         )
         return PreviewPlan(
             sliceCount = plan.sliceCount,
