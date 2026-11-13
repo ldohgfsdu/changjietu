@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
 import android.graphics.Color
 import android.graphics.Rect
+import com.changjietu.app.image.analysis.GridStructureProtection
 import java.io.InputStream
 import kotlin.math.max
 import kotlin.math.min
@@ -57,6 +58,12 @@ class BitmapRegionSource(
     }
 }
 
+data class EnergyAnalysis(
+    val columnEnergy: FloatArray,
+    val rowEnergy: FloatArray,
+    val protectedSeamRows: BooleanArray,
+)
+
 object RegionDecoderUtil {
 
     /**
@@ -66,7 +73,17 @@ object RegionDecoderUtil {
     fun computeEnergyMaps(
         source: RegionSource,
         targetSampleWidth: Int = 256,
-    ): Pair<FloatArray, FloatArray> {
+    ): Pair<FloatArray, FloatArray> =
+        computeAnalysisMaps(source, targetSampleWidth).let { it.columnEnergy to it.rowEnergy }
+
+    /**
+     * Produces the original row/column energy and additional table-grid protection
+     * in a single streamed region-decode pass. No full-image allocation.
+     */
+    fun computeAnalysisMaps(
+        source: RegionSource,
+        targetSampleWidth: Int = 256,
+    ): EnergyAnalysis {
         val w = source.width
         val h = source.height
         val sampleSize = max(1, w / targetSampleWidth)
@@ -74,6 +91,7 @@ object RegionDecoderUtil {
         val colAcc = FloatArray(w)
         val colCount = FloatArray(w)
         val rowEnergy = FloatArray(h)
+        var gridProtection: GridStructureProtection? = null
 
         var y = 0
         while (y < h) {
@@ -89,10 +107,16 @@ object RegionDecoderUtil {
                 val scaleY = (y2 - y).toFloat() / bh
                 val pixels = IntArray(bw * bh)
                 bmp.getPixels(pixels, 0, bw, 0, 0, bw, bh)
+                if (gridProtection == null && bw > 1) {
+                    gridProtection = GridStructureProtection(h, bw)
+                }
                 for (py in 0 until bh) {
                     // 一个采样像素代表一段源像素。只写一个下标会让中间列/行保持 0，
                     // 空白边检测会把正文里的采样空洞当成可裁空白。
                     val ySpan = sampleSpan(y, py, scaleY, h)
+                    if (!ySpan.isEmpty()) {
+                        gridProtection?.acceptRow(pixels, py * bw, ySpan.first, ySpan.last + 1)
+                    }
                     var rowVar = 0f
                     var prevLum = -1f
                     for (px in 0 until bw) {
@@ -124,7 +148,11 @@ object RegionDecoderUtil {
         val colEnergy = FloatArray(w) { i ->
             if (colCount[i] > 0) colAcc[i] / colCount[i] else 0f
         }
-        return colEnergy to rowEnergy
+        return EnergyAnalysis(
+            columnEnergy = colEnergy,
+            rowEnergy = rowEnergy,
+            protectedSeamRows = gridProtection?.protectedRows() ?: BooleanArray(h),
+        )
     }
 
     /**

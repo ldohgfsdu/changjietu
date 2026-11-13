@@ -34,6 +34,8 @@ data class SourceInfo(
     val columnEnergy: FloatArray = FloatArray(0),
     /** 源图行能量（源坐标，仅 source-invariant，不随设置变化）。 */
     val rowEnergy: FloatArray = FloatArray(0),
+    /** Source-row mask for long parallel table/chart edges: these are not safe blank seams. */
+    val protectedSeamRows: BooleanArray = BooleanArray(0),
 )
 
 data class EditorState(
