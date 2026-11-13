@@ -19,6 +19,7 @@ class GridStructureProtection(
     private val minParallelRules: Int = 4,
 ) {
     init { require(height > 0 && sampledWidth > 1) }
+    private val sampleWidth = sampledWidth
     private val binSize = 3
     private val bins = (sampledWidth + binSize - 1) / binSize
     private val activeStart = IntArray(bins) { -1 }
@@ -31,8 +32,7 @@ class GridStructureProtection(
         check(!finished) { "Cannot append rows after collecting protected spans" }
         if (top < 0 || bottomExclusive <= top || bottomExclusive > height) return
         visible.fill(false)
-        val width = bins * binSize
-        val count = (pixels.size - offset).coerceAtMost(width)
+        val count = (pixels.size - offset).coerceAtMost(sampleWidth)
         if (count <= 1) return
 
         var lastLuma = luminance(pixels[offset])
