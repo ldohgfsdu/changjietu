@@ -58,6 +58,17 @@ fun CutPreview(
         val boxW = with(density) { maxWidth.toPx() }
         val boxH = with(density) { maxHeight.toPx() }
         if (boxW <= 1f || boxH <= 1f) return@BoxWithConstraints
+        // Small numbers of cuts are more useful as cut-adjacent excerpts than as
+        // a full 1:12 long strip. Each tile shows the actual content around one seam.
+        if (plan.cutEnds.size in 2..9) {
+            CutBoundaryPreview(
+                bitmap = bitmap,
+                plan = plan,
+                showCrop = showCrop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return@BoxWithConstraints
+        }
         val frame = CutPreviewGeometry.fit(boxW, boxH, plan.sourceWidth, plan.sourceHeight)
         Image(
             bitmap = bitmap,
