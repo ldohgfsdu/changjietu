@@ -206,13 +206,7 @@ fun ProcessScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-                if (bitmap != null) {
-                    Text(
-                        "点击查看并调整切线",
-                        fontSize = 12.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceSecondary,
-                    )
-                }
+
                 if (uncertainCuts.isNotEmpty()) {
                     Surface(
                         color = MiuixTheme.colorScheme.surface,
@@ -235,7 +229,7 @@ fun ProcessScreen(
                     softWrap = false,
                 )
                 Text(
-                    if (manualActive) "已手动调整切线，生成时按当前切线执行。" else "点击预览可先在长图上拖动切线。",
+                    if (manualActive) "已手动调整切线" else "点击预览调整切线",
                     fontSize = 12.sp,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
                 )
@@ -321,6 +315,7 @@ fun ProcessScreen(
                 uncertainCutEnds = uncertainCuts.toSet(),
                 onCutPreview = viewModel::previewManualCut,
                 onAddCutPoint = viewModel::addManualCutPoint,
+                onDeleteCutPoint = viewModel::deleteManualCutPoint,
                 onClearManualCuts = viewModel::clearManualCuts,
                 onDismiss = { expanded = false },
             )
@@ -381,20 +376,10 @@ private fun QualitySummary(src: SourceInfo) {
     val q = src.quality
     val caption = MiuixTheme.colorScheme.onSurfaceSecondary
     when (q.level) {
-        QualityLevel.GOOD -> {
-            Text(q.level.displayName(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        QualityLevel.GOOD, QualityLevel.USABLE -> {
             Text(
-                "原图宽度 ${src.width} px",
-                fontSize = 13.sp,
-                color = caption,
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
-        QualityLevel.USABLE -> {
-            Text(q.level.displayName(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(
-                "原图宽度 ${src.width} px。${q.conclusion}",
+                if (q.level == QualityLevel.GOOD) q.level.displayName()
+                else "${q.level.displayName()}：${q.conclusion}",
                 fontSize = 13.sp,
                 color = caption,
             )
@@ -451,7 +436,7 @@ private fun HeightControl(
             Column(Modifier.weight(1f)) {
                 Text("每张高度", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 Text(
-                    if (settings.targetHeight >= maxTarget) "按当前设备屏幕像素高度裁切" else "占屏幕高度 $percent%",
+                    if (settings.targetHeight >= maxTarget) "与当前屏幕等高" else "占屏幕高度 $percent%",
                     fontSize = 13.sp,
                     color = caption,
                     maxLines = 1,
@@ -469,18 +454,15 @@ private fun HeightControl(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(
-                text = "按屏幕高度",
+            HeightPreset(
+                label = "按屏幕高度",
+                selected = settings.targetHeight == maxTarget,
                 onClick = { onTargetChange(maxTarget) },
             )
-            TextButton(
-                text = "紧凑半屏",
+            HeightPreset(
+                label = "紧凑半屏",
+                selected = settings.targetHeight == minTarget,
                 onClick = { onTargetChange(minTarget) },
-            )
-            Text(
-                "滑块快速调整，输入框精确输入",
-                fontSize = 12.sp,
-                color = caption,
             )
         }
         if (maxTarget > minTarget) {
@@ -491,13 +473,6 @@ private fun HeightControl(
                 max = maxTarget.toFloat(),
             )
         }
-        Text(
-            "屏幕长边 $maxTarget px",
-            fontSize = 12.sp,
-            color = caption,
-            maxLines = 1,
-            softWrap = false,
-        )
         if (contentWidth > displaySpec.shortSidePx) {
             Text(
                 "原图宽 $contentWidth px，比屏幕宽。输出保留完整宽度，不缩放、不横向裁切。",
@@ -505,6 +480,33 @@ private fun HeightControl(
                 color = caption,
             )
         }
+    }
+}
+
+@Composable
+private fun HeightPreset(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier
+            .defaultMinSize(minHeight = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else MiuixTheme.colorScheme.surface,
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (selected) "✓ $label" else label,
+            fontSize = 13.sp,
+            color = if (selected) MiuixTheme.colorScheme.primary
+                else MiuixTheme.colorScheme.onSurfaceSecondary,
+        )
     }
 }
 
@@ -570,73 +572,66 @@ private fun MoreOptions(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("更多选项", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text(if (open) "收起" else "页码、裁边、输出格式", fontSize = 13.sp, color = caption)
+            Text(if (open) "收起" else "页码、裁边、画质", fontSize = 13.sp, color = caption)
         }
         if (open) {
             Text(
-                "黄色框 = 实际输出边界；自动仅裁上下空白，左右裁边必须手动指定。",
+                "开启裁边后，黄色框为输出边界。左右检测值可能误切正文，请确认后应用。",
                 fontSize = 13.sp,
                 color = caption,
                 modifier = Modifier.padding(vertical = 6.dp),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("左裁边", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                PxField(
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MarginInput(
+                    label = "左裁边",
                     value = eff.left,
-                    min = 0,
                     max = (src.width / 2).coerceAtLeast(1),
+                    modifier = Modifier.weight(1f),
                     onValueChange = { v -> onManualMarginsChange { it.copy(left = v) } },
                 )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("右裁边", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                PxField(
+                MarginInput(
+                    label = "右裁边",
                     value = eff.right,
-                    min = 0,
                     max = (src.width / 2).coerceAtLeast(1),
+                    modifier = Modifier.weight(1f),
                     onValueChange = { v -> onManualMarginsChange { it.copy(right = v) } },
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("上裁边", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                PxField(
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MarginInput(
+                    label = "上裁边",
                     value = eff.top,
-                    min = 0,
                     max = (src.height / 2).coerceAtLeast(1),
+                    modifier = Modifier.weight(1f),
                     onValueChange = { v -> onManualMarginsChange { it.copy(top = v) } },
                 )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("下裁边", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                PxField(
+                MarginInput(
+                    label = "下裁边",
                     value = eff.bottom,
-                    min = 0,
                     max = (src.height / 2).coerceAtLeast(1),
+                    modifier = Modifier.weight(1f),
                     onValueChange = { v -> onManualMarginsChange { it.copy(bottom = v) } },
                 )
             }
+            Spacer(Modifier.height(8.dp))
             Text(
-                "检测值：左 ${src.margins.left} · 右 ${src.margins.right} · 上 ${src.margins.top} · 下 ${src.margins.bottom} px",
+                "检测值：左 ${src.margins.left}、右 ${src.margins.right}、上 ${src.margins.top}、下 ${src.margins.bottom} px",
                 fontSize = 12.sp,
                 color = caption,
-                maxLines = 1,
-                softWrap = false,
+            )
+            TextButton(
+                text = "应用检测值（含左右）",
+                onClick = {
+                    onManualMarginsChange { src.margins }
+                    onChange { it.copy(cropMargins = true) }
+                },
+            )
+            Text(
+                if (settings.cropMargins) "当前裁边已生效，请检查预览中的黄色边界"
+                else "当前未裁边；以上数值仅作为待应用的设置",
+                fontSize = 12.sp,
+                color = caption,
             )
             if (manualMargins != null) {
                 TextButton(text = "恢复安全自动值", onClick = onClearManualMargins)
@@ -654,12 +649,25 @@ private fun MoreOptions(
                 modifier = Modifier.padding(vertical = 6.dp),
             )
             Text(
-                "输出为 JPEG ${settings.jpegQuality}%。像素尺寸与原图一致，不会缩放。" +
-                    "JPEG 会重新压缩，文字边缘可能略有损失，这不是无损画质。",
+                "JPEG ${settings.jpegQuality}%：不缩放，但重新压缩可能损失文字边缘细节。",
                 fontSize = 13.sp,
                 color = caption,
             )
         }
+    }
+}
+
+@Composable
+private fun MarginInput(
+    label: String,
+    value: Int,
+    max: Int,
+    modifier: Modifier = Modifier,
+    onValueChange: (Int) -> Unit,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        PxField(value = value, min = 0, max = max, onValueChange = onValueChange)
     }
 }
 
@@ -771,6 +779,7 @@ private fun CutPreviewDialog(
     uncertainCutEnds: Set<Int>,
     onCutPreview: (Int, Int) -> Unit,
     onAddCutPoint: (Int) -> Unit,
+    onDeleteCutPoint: (Int) -> Unit,
     onClearManualCuts: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -803,6 +812,7 @@ private fun CutPreviewDialog(
                         uncertainCutEnds = uncertainCutEnds,
                         onPreviewCut = onCutPreview,
                         onAddCutPoint = onAddCutPoint,
+                        onDeleteCutPoint = onDeleteCutPoint,
                         onClearManualCuts = onClearManualCuts,
                         modifier = Modifier
                             .weight(1f)
@@ -819,7 +829,8 @@ private fun marginSummary(
     cropEnabled: Boolean,
     manualMargins: com.changjietu.app.image.analysis.Margins?,
 ): String {
-    if (!cropEnabled) return "当前保留原图全部像素；开启后默认仅自动裁上下空白"
+    if (!cropEnabled) return if (manualMargins == null) "已关闭，不裁边；开启后默认仅裁上下空白"
+        else "已关闭，不裁边；手动数值已保留但不会应用"
     val m = SafeCropMargins.effective(cropEnabled, src.margins, manualMargins)
     if (m.isEmpty()) return "当前没有裁边；左右边缘保留"
     val detail = "左 ${m.left} · 右 ${m.right} · 上 ${m.top} · 下 ${m.bottom} px"

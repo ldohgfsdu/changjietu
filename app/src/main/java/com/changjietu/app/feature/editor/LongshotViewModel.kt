@@ -329,6 +329,19 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         publishPreviewPlan(src, _settings.value)
     }
 
+    /** 删除一条可见切线；隐藏在裁边外的切线仍以 source 坐标保留。 */
+    fun deleteManualCutPoint(visibleIndex: Int) {
+        val plan = _previewPlan.value ?: return
+        val allSource = _manualCuts.value
+            ?: plan.cutEnds.dropLast(1).map { it + plan.contentTop }
+        val remaining = SourceCutGeometry.withoutVisibleCut(
+            allSource, visibleIndex, plan.contentTop, plan.contentHeight, MIN_SLICE_PX,
+        ) ?: return
+        _manualCuts.value = remaining
+        val src = _source.value ?: return
+        publishPreviewPlan(src, _settings.value)
+    }
+
     fun clearManualCuts() {
         if (_manualCuts.value == null) return
         _manualCuts.value = null

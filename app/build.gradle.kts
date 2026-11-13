@@ -23,8 +23,8 @@ android {
         applicationId = "com.changjietu.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 26
-        versionName = "0.2.24"
+        versionCode = 27
+        versionName = "0.2.25"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

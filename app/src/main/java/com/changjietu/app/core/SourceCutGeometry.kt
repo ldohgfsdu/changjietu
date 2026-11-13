@@ -37,6 +37,24 @@ object SourceCutGeometry {
         return manualSource.indexOf(visible[visibleIndex])
     }
 
+    /**
+     * 删除当前可见的切线，但保留裁边范围外的隐藏切线。
+     * 返回 null 表示索引无效；空列表表示用户明确删除了全部切线。
+     */
+    fun withoutVisibleCut(
+        manualSource: List<Int>,
+        visibleIndex: Int,
+        contentTop: Int,
+        contentHeight: Int,
+        minSlicePx: Int = 50,
+    ): List<Int>? {
+        val fullIndex = fullIndexOfVisible(
+            manualSource, visibleIndex, contentTop, contentHeight, minSlicePx,
+        )
+        if (fullIndex < 0) return null
+        return manualSource.toMutableList().apply { removeAt(fullIndex) }
+    }
+
     /** 统一合法矩形约束：L+R ≤ W−minW，T+B ≤ H−minH（左/上优先）。 */
     fun sanitizeMargins(
         margins: com.changjietu.app.image.analysis.Margins,

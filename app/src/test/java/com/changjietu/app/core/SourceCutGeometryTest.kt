@@ -47,6 +47,21 @@ class SourceCutGeometryTest {
     }
 
     @Test
+    fun remove_visible_cut_preserves_hidden_source_cuts() {
+        val all = listOf(20, 5000, 8000, 12050)
+        assertEquals(
+            listOf(20, 8000, 12050),
+            SourceCutGeometry.withoutVisibleCut(all, 0, 38, 10000),
+        )
+        assertEquals(
+            listOf(20, 5000, 12050),
+            SourceCutGeometry.withoutVisibleCut(all, 1, 38, 10000),
+        )
+        assertEquals(null, SourceCutGeometry.withoutVisibleCut(all, 2, 38, 10000))
+        assertEquals(emptyList<Int>(), SourceCutGeometry.withoutVisibleCut(listOf(5000), 0, 0, 10000))
+    }
+
+    @Test
     fun sanitize_rejects_zero_width_height() {
         val m = com.changjietu.app.image.analysis.Margins(610, 0, 610, 0)
         val c = SourceCutGeometry.sanitizeMargins(m, 1220, 1000)
