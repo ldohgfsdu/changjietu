@@ -1,6 +1,6 @@
 # 当前状态
 
-> 更新日期：2026-11-11
+> 历史验证记录更新至 2026-11-11。本文按修复轮次保留历史事实，不代表最新发布版本；代码版本以 [app/build.gradle.kts](../app/build.gradle.kts) 为准，正式 APK 以 [GitHub Releases](https://github.com/ldohgfsdu/changjietu/releases) 为准。
 > **只记录仓库可证实的事实**。
 
 ---
