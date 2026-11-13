@@ -1,11 +1,14 @@
 """Device-independent negative controls for actual JPEG export and UI detection."""
 import struct
+import subprocess
+import tempfile
 import sys
 from pathlib import Path
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from emulator_flow_smoke import make_png, jpeg_dimensions, node_texts, tap_text
+from emulator_flow_smoke import PACKAGE, FIXTURE_NAME, app_fixture, make_png, jpeg_dimensions, node_texts, tap_text
 
 
 class FlowDetectorTests(unittest.TestCase):
@@ -31,6 +34,28 @@ class FlowDetectorTests(unittest.TestCase):
             '<hierarchy><node text="切片结果"/><node content-desc="保存相册"/></hierarchy>'
         ))
         self.assertEqual([], node_texts('<hierarchy/>'))
+
+    def test_fixture_transfer_requires_complete_copy_and_cleans_staging(self):
+        staged = f"/data/local/tmp/{PACKAGE}-{FIXTURE_NAME}"
+        for observed in (4, 3):
+            with self.subTest(observed=observed), tempfile.TemporaryDirectory() as tmp:
+                calls = []
+
+                def fake_adb(*args, **kwargs):
+                    calls.append(args)
+                    stdout = f"{observed} files/{FIXTURE_NAME}\\n".encode() if "wc" in args else b""
+                    return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr=b"")
+
+                with mock.patch("emulator_flow_smoke.make_png", return_value=b"test"), mock.patch(
+                    "emulator_flow_smoke.adb", side_effect=fake_adb
+                ):
+                    if observed == 4:
+                        app_fixture(Path(tmp))
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "fixture incomplete"):
+                            app_fixture(Path(tmp))
+                self.assertIn(("shell", "run-as", PACKAGE, "cp", staged, f"files/{FIXTURE_NAME}"), calls)
+                self.assertIn(("shell", "rm", "-f", staged), calls)
 
     def test_invalid_xml_does_not_silently_pass(self):
         with self.assertRaises(ET.ParseError):

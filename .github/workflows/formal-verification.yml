@@ -2,7 +2,7 @@ name: Formal state-machine verification
 
 on:
   push:
-    branches: [master, "formal/**", "fix/**"]
+    branches: [master]
     paths:
       - "formal/longshot/**"
       - ".cursor/skills/verify-longshot-*/**"
@@ -19,6 +19,11 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: formal-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Keep all master pushes; supersede only stale PR verification.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   bounded-tlc:

@@ -149,14 +149,26 @@ def app_fixture(evidence: Path):
     fixture.write_bytes(make_png())
     adb("shell", "pm", "clear", PACKAGE)
     adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files")
-    # exec-in is binary-safe. The fixture belongs to the debug app's sandbox.
-    installed = subprocess.run(
-        ["adb", "exec-in", "run-as", PACKAGE, "sh", "-c", f"cat > files/{FIXTURE_NAME}"],
-        input=fixture.read_bytes(), capture_output=True, timeout=60, check=False,
-    )
-    if installed.returncode:
-        raise RuntimeError("Cannot install sandbox fixture: " + installed.stderr.decode("utf-8", "replace")[-500:])
-    adb("shell", "run-as", PACKAGE, "ls", "-l", f"files/{FIXTURE_NAME}")
+    # adb exec-in sometimes reports success while the destination is absent.
+    # Stage with adb push, then copy as the debuggable app UID (run-as).
+    # The byte-length check prevents a false-green from a partial transfer.
+    staged = f"/data/local/tmp/{PACKAGE}-{FIXTURE_NAME}"
+    destination = f"files/{FIXTURE_NAME}"
+    try:
+        adb("push", str(fixture), staged, timeout=60)
+        adb("shell", "run-as", PACKAGE, "cp", staged, destination, timeout=60)
+        result = adb("shell", "run-as", PACKAGE, "wc", "-c", destination)
+        try:
+            copied_bytes = int(result.stdout.decode("utf-8", "replace").split()[0])
+        except (ValueError, IndexError) as exc:
+            raise RuntimeError("Cannot determine app-private fixture length") from exc
+        expected_bytes = fixture.stat().st_size
+        if copied_bytes != expected_bytes:
+            raise RuntimeError(
+                f"App-private fixture incomplete: expected {expected_bytes} bytes, got {copied_bytes}"
+            )
+    finally:
+        adb("shell", "rm", "-f", staged, check=False)
 
 
 def export_files() -> list[str]:
