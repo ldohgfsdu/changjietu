@@ -8,6 +8,8 @@ on:
       - "app/build.gradle.kts"
       - "tools/emulator_home_smoke.py"
       - "tools/tests/test_emulator_home_smoke.py"
+      - "tools/emulator_flow_smoke.py"
+      - "tools/tests/test_emulator_flow_smoke.py"
       - ".github/workflows/emulator-home-ui.yml"
   schedule:
     - cron: "17 3 * * *"
@@ -27,8 +29,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Test detector with known centered, offset and missing controls
-        run: python3 -m unittest discover -s tools/tests -p 'test_emulator_home_smoke.py' -v
+      - name: Test UI and output detectors with positive and negative controls
+        run: |
+          python3 -m unittest discover -s tools/tests -p 'test_emulator_home_smoke.py' -v
+          python3 -m unittest discover -s tools/tests -p 'test_emulator_flow_smoke.py' -v
 
       - uses: actions/setup-java@v6
         with:
@@ -58,12 +62,15 @@ jobs:
             chmod +x gradlew tools/aapt2
             ./gradlew :app:assembleDebug --no-daemon
             python3 tools/emulator_home_smoke.py --apk app/build/outputs/apk/debug/app-debug.apk
+            python3 tools/emulator_flow_smoke.py
 
       - name: Upload screenshot, UI hierarchy and bounded logcat
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: emulator-home-${{ github.run_id }}
-          path: output/emulator-home-smoke/
+          path: |
+            output/emulator-home-smoke/
+            output/emulator-flow-smoke/
           retention-days: 14
           if-no-files-found: warn
