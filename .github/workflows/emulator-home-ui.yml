@@ -1,0 +1,69 @@
+name: Android emulator home UX patrol
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "app/src/main/**"
+      - "app/build.gradle.kts"
+      - "tools/emulator_home_smoke.py"
+      - "tools/tests/test_emulator_home_smoke.py"
+      - ".github/workflows/emulator-home-ui.yml"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: emulator-home-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  home-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Test detector with known centered, offset and missing controls
+        run: python3 -m unittest discover -s tools/tests -p 'test_emulator_home_smoke.py' -v
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Allow KVM access for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Boot emulator and test real launch/home layout
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -eu
+            sdkmanager "build-tools;35.0.0" "platforms;android-35"
+            printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+            chmod +x gradlew tools/aapt2
+            ./gradlew :app:assembleDebug --no-daemon
+            python3 tools/emulator_home_smoke.py --apk app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload screenshot, UI hierarchy and bounded logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-home-${{ github.run_id }}
+          path: output/emulator-home-smoke/
+          retention-days: 14
+          if-no-files-found: warn
