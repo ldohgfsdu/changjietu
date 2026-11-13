@@ -927,6 +927,11 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         _source.value = null
         _editor.value = null
         _overview.value = null
+        _manualCuts.value = null
+        _manualMargins.value = null
+        detailJob?.cancel()
+        detailJob = null
+        _detailOverview.value = null
         resetPreview()
         _homeState.value = HomeUiState.Idle
     }
