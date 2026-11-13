@@ -100,31 +100,29 @@ fun PreviewCutEditor(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
+        // Two compact helper lines leave more screen space for the source image.
         Text(
-            "拖动手柄调整切线，长按图片新增切线",
+            "拖动切线调整，长按图片添加",
             color = MiuixTheme.colorScheme.onSurfaceSecondary,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
             fontSize = 12.sp,
         )
-        Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterStart) {
-            Text(
-                if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
-                    "红色：当前位置缺少可靠空白，请继续调整"
-                else "蓝色：检测到空白，仍需确认图表完整",
-                color = if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
-                    UncertainLineColor else MiuixTheme.colorScheme.onSurfaceSecondary,
-                modifier = Modifier.padding(horizontal = 4.dp),
-                fontSize = 12.sp,
-            )
-        }
+        Text(
+            if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
+                "红色：未找到可靠空白，请检查切线位置"
+            else "蓝色：候选空白，仍需检查图片与表格",
+            color = if (cuts.getOrNull(selectedCutIndex) in uncertainCutEnds)
+                UncertainLineColor else MiuixTheme.colorScheme.onSurfaceSecondary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            fontSize = 12.sp,
+        )
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
             val density = LocalDensity.current
             val aspect = bitmap.height.toFloat() / bitmap.width.coerceAtLeast(1).toFloat()
             val viewHeightDp = (maxWidth.value * aspect).coerceAtLeast(1f).coerceAtMost(MAX_VIEW_HEIGHT_DP)
             val viewHeightPx = with(density) { viewHeightDp.dp.toPx() }
-            // The 52dp navigation row is above the scroll viewport, not inside it.
-            // Subtract it so initial and manual jumps center the actual cut line.
-            val viewportHeightPx = with(density) { (maxHeight - 52.dp).toPx() }.coerceAtLeast(1f)
+            // Center within the image viewport, excluding the compact 48dp navigation.
+            val viewportHeightPx = with(density) { (maxHeight - 48.dp).toPx() }.coerceAtLeast(1f)
             val handleSizePx = with(density) { HANDLE_TOUCH_SIZE.toPx() }
 
             // On opening the editor, show the selected *cut line*, not the top of
@@ -144,13 +142,12 @@ fun PreviewCutEditor(
             }
 
             Column(Modifier.fillMaxSize()) {
-                // 实机 v0.2.6 证明自定义箭头图标不可见。
-                // 使用固定宽度的文字触控控件，避免自定义 ImageVector 色彩兼容风险。
+                // Keep legible text actions; no decorative locator outline.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
-                        .padding(horizontal = 8.dp),
+                        .height(48.dp)
+                        .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -158,8 +155,8 @@ fun PreviewCutEditor(
                     val canNext = cuts.isNotEmpty() && selectedCutIndex < cuts.lastIndex
                     Box(
                         modifier = Modifier
-                            .width(78.dp)
-                            .height(48.dp)
+                            .width(72.dp)
+                            .height(44.dp)
                             .clickable(enabled = canPrevious, onClickLabel = "上一条切线") {
                                 val next = selectedCutIndex - 1
                                 selectedCutIndex = next
@@ -177,23 +174,23 @@ fun PreviewCutEditor(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
-                            .border(1.dp, MiuixTheme.colorScheme.outline, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                            .height(44.dp)
                             .clickable(enabled = cuts.isNotEmpty(), onClickLabel = "定位当前切线") {
                                 jumpTo(selectedCutIndex, viewHeightPx, viewportHeightPx)
                             },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            if (cuts.isEmpty()) "无切线" else "第 ${selectedCutIndex + 1}/${cuts.size} 条  定位",
-                            fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                            if (cuts.isEmpty()) "无切线" else "${selectedCutIndex + 1}/${cuts.size} · 定位",
+                            fontSize = 13.sp,
+                            color = if (cuts.isNotEmpty()) MiuixTheme.colorScheme.primary
+                                else MiuixTheme.colorScheme.onSurfaceSecondary,
                         )
                     }
                     Box(
                         modifier = Modifier
-                            .width(78.dp)
-                            .height(48.dp)
+                            .width(72.dp)
+                            .height(44.dp)
                             .clickable(enabled = canNext, onClickLabel = "下一条切线") {
                                 val next = selectedCutIndex + 1
                                 selectedCutIndex = next
@@ -345,7 +342,7 @@ fun PreviewCutEditor(
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
