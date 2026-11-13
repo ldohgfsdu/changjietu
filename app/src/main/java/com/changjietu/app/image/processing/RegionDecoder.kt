@@ -82,7 +82,7 @@ object RegionDecoderUtil {
      */
     fun computeAnalysisMaps(
         source: RegionSource,
-        targetSampleWidth: Int = 384,
+        targetSampleWidth: Int = 256,
     ): EnergyAnalysis {
         val w = source.width
         val h = source.height
