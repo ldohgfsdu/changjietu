@@ -46,8 +46,6 @@ jobs:
       - name: Install Android SDK packages
         run: |
           set -euo pipefail
-          sdkmanager_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
-          test -x "$sdkmanager_bin"
           compile_sdk=$(sed -nE 's/^[[:space:]]*compileSdk[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n1)
           build_tools=$(sed -nE 's/^[[:space:]]*buildToolsVersion[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)
           [[ -n "$compile_sdk" && -n "$build_tools" ]] || { echo "::error::Cannot read compileSdk/buildToolsVersion from app/build.gradle.kts"; exit 1; }
@@ -56,6 +54,8 @@ jobs:
                 -x "$ANDROID_HOME/build-tools/$build_tools/apksigner" ]]; then
             echo "Android SDK packages are already present; skipping sdkmanager refresh."
           else
+            sdkmanager_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
+            test -x "$sdkmanager_bin"
             "$sdkmanager_bin" "platforms;android-$compile_sdk" "build-tools;$build_tools"
           fi
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
@@ -93,8 +93,6 @@ jobs:
       - name: Install Android SDK packages
         run: |
           set -euo pipefail
-          sdkmanager_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
-          test -x "$sdkmanager_bin"
           compile_sdk=$(sed -nE 's/^[[:space:]]*compileSdk[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n1)
           build_tools=$(sed -nE 's/^[[:space:]]*buildToolsVersion[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)
           [[ -n "$compile_sdk" && -n "$build_tools" ]] || { echo "::error::Cannot read compileSdk/buildToolsVersion from app/build.gradle.kts"; exit 1; }
@@ -103,6 +101,8 @@ jobs:
                 -x "$ANDROID_HOME/build-tools/$build_tools/apksigner" ]]; then
             echo "Android SDK packages are already present; skipping sdkmanager refresh."
           else
+            sdkmanager_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
+            test -x "$sdkmanager_bin"
             "$sdkmanager_bin" "platforms;android-$compile_sdk" "build-tools;$build_tools"
           fi
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
