@@ -304,6 +304,7 @@ object SplitPointDetector {
             gaps = gaps,
             energy = smoothed,
             searchWindow = effectiveWindow,
+            protectedRows = protectedRows,
         )
     }
 
@@ -409,6 +410,7 @@ object SplitPointDetector {
         gaps: List<IntRange>,
         energy: FloatArray,
         searchWindow: Int,
+        protectedRows: BooleanArray?,
     ): List<IntRange> {
         if (ranges.size < 2) return ranges
         val prev = ranges[ranges.size - 2]
@@ -441,7 +443,7 @@ object SplitPointDetector {
             ideal = ideal,
             rangeStart = combinedStart,
             target = target,
-        ) ?: findLowestEnergyY(energy, windowStart, windowEnd, ideal)).coerceIn(lo, hi)
+        ) ?: lowestOutsideProtected(energy, protectedRows, windowStart, windowEnd, ideal)).coerceIn(lo, hi)
 
         val nextStart = (cut - ov).coerceAtLeast(0)
         val newPrev = combinedStart until cut
