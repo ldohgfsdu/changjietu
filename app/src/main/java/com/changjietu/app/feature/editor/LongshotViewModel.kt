@@ -836,22 +836,46 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveToGallery(onResult: (Result<SaveSummary>) -> Unit) {
-        val slices = selectedSlices()
+        saveSlicesToGallery(selectedSlices(), onResult)
+    }
+
+    /** Retry only failed files, and reject callbacks originating from an obsolete editor. */
+    fun retryFailedGallerySaves(
+        failedSlices: List<SliceOutput>,
+        onResult: (Result<SaveSummary>) -> Unit,
+    ) {
+        val currentFiles = _editor.value?.slices?.map { it.file.absolutePath }?.toSet().orEmpty()
+        if (failedSlices.isEmpty() || failedSlices.any { it.file.absolutePath !in currentFiles }) {
+            onResult(Result.failure(IllegalStateException("切片已变化，请重新选择后保存")))
+            return
+        }
+        saveSlicesToGallery(failedSlices, onResult)
+    }
+
+    private fun saveSlicesToGallery(
+        slices: List<SliceOutput>,
+        onResult: (Result<SaveSummary>) -> Unit,
+    ) {
         if (slices.isEmpty()) {
             onResult(Result.failure(IllegalStateException(ProcessErrorMessages.NO_SELECTION)))
             return
         }
+        val generation = sourceGeneration
         val lease = runCatching { fileRetention.acquire(slices.map { it.file }) }
             .getOrElse { onResult(Result.failure(it)); return }
         viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) { exportRepo.saveToGallery(slices) }
                 onResult(result)
-                result.onSuccess { summary ->
-                    _editor.update {
-                        it?.copy(
-                            statusMessage = "已保存 ${summary.saved} 张到相册 Pictures/${ExportRepository.ALBUM_NAME}",
-                        )
+                if (sourceGeneration == generation) {
+                    result.onSuccess { summary ->
+                        _editor.update {
+                            it?.copy(statusMessage = if (summary.failed == 0) {
+                                "已保存 ${summary.saved} 张到相册 Pictures/${ExportRepository.ALBUM_NAME}"
+                            } else {
+                                "已保存 ${summary.saved} 张，${summary.failed} 张失败"
+                            })
+                        }
                     }
                 }
             } finally {

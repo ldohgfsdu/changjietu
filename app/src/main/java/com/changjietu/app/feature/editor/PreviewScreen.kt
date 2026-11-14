@@ -69,6 +69,7 @@ import com.changjietu.app.core.ProcessErrorMessages
 import com.changjietu.app.core.ZipNameSanitizer
 import com.changjietu.app.core.icons.AppIcons
 import com.changjietu.app.feature.export.ExportRepository
+import com.changjietu.app.feature.export.SaveSummary
 import com.changjietu.app.image.analysis.QualityLevel
 import com.changjietu.app.image.analysis.displayName
 import com.changjietu.app.image.processing.SliceOutput
@@ -121,9 +122,9 @@ fun PreviewScreen(
         }
     }
 
-    fun performSave() {
+    fun performSave(retryOnly: List<SliceOutput>? = null) {
         busy = true
-        viewModel.saveToGallery { result ->
+        val callback: (Result<SaveSummary>) -> Unit = { result ->
             busy = false
             result.onSuccess { summary ->
                 val msg = if (summary.failed == 0) {
@@ -131,7 +132,17 @@ fun PreviewScreen(
                 } else {
                     "已保存 ${summary.saved} 张，${summary.failed} 张失败"
                 }
-                scope.launch { snackbar.showSnackbar(msg) }
+                scope.launch {
+                    val action = snackbar.showSnackbar(
+                        message = msg,
+                        actionLabel = if (summary.failed > 0) "仅重试失败项" else null,
+                        withDismissAction = summary.failed > 0,
+                        duration = if (summary.failed > 0) SnackbarDuration.Long else SnackbarDuration.Short,
+                    )
+                    if (action == SnackbarResult.ActionPerformed && summary.failedSlices.isNotEmpty()) {
+                        performSave(summary.failedSlices)
+                    }
+                }
             }.onFailure {
                 scope.launch {
                     snackbar.showSnackbar(
@@ -141,6 +152,8 @@ fun PreviewScreen(
                 }
             }
         }
+        if (retryOnly == null) viewModel.saveToGallery(callback)
+        else viewModel.retryFailedGallerySaves(retryOnly, callback)
     }
 
     fun doZip(name: String) {
