@@ -17,8 +17,32 @@ import java.io.IOException
 data class SaveSummary(
     val saved: Int,
     val failed: Int,
+    /** Only these slices should be written again after a partial failure. */
+    val failedSlices: List<SliceOutput> = emptyList(),
 ) {
     val total: Int get() = saved + failed
+}
+
+/**
+ * Save one item at a time without discarding successfully exported slices.
+ * The failed subset is kept in reading order so retries never export successes again.
+ */
+internal fun saveSliceBatch(
+    slices: List<SliceOutput>,
+    saveOne: (SliceOutput) -> Boolean,
+): SaveSummary {
+    var saved = 0
+    val failedSlices = mutableListOf<SliceOutput>()
+    for (slice in OrderedSlices.ascending(slices)) {
+        val success = try {
+            saveOne(slice)
+        } catch (e: Exception) {
+            if (e is java.util.concurrent.CancellationException) throw e
+            false
+        }
+        if (success) saved++ else failedSlices += slice
+    }
+    return SaveSummary(saved = saved, failed = failedSlices.size, failedSlices = failedSlices)
 }
 
 data class SavedZip(
@@ -41,16 +65,9 @@ class ExportRepository(private val context: Context) {
         albumName: String = ALBUM_NAME,
     ): Result<SaveSummary> = runCatching {
         require(slices.isNotEmpty()) { "no slices" }
-        var saved = 0
-        var failed = 0
-        for (slice in OrderedSlices.ascending(slices)) {
-            if (saveOneToGallery(slice.file, slice.file.name, albumName)) {
-                saved++
-            } else {
-                failed++
-            }
+        saveSliceBatch(slices) { slice ->
+            saveOneToGallery(slice.file, slice.file.name, albumName)
         }
-        SaveSummary(saved = saved, failed = failed)
     }
 
     private fun saveOneToGallery(file: File, displayName: String, albumName: String): Boolean {
