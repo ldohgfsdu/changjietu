@@ -1,19 +1,6 @@
 name: Android verify and publish
 
 on:
-  push:
-    branches:
-      - master
-    tags:
-      - "v*"
-  pull_request:
-    branches:
-      - master
-    # Documentation-only PRs do not need the Android build.
-    # Keep master pushes and tags unfiltered: they may be release events.
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
   workflow_dispatch:
     inputs:
       publish:

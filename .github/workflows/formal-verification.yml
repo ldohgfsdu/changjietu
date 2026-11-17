@@ -1,20 +1,6 @@
 name: Formal state-machine verification
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - "formal/longshot/**"
-      - ".cursor/skills/verify-longshot-*/**"
-      - "app/src/main/java/**"
-      - ".github/workflows/formal-verification.yml"
-  pull_request:
-    branches: [master]
-    paths:
-      - "formal/longshot/**"
-      - ".cursor/skills/verify-longshot-*/**"
-      - "app/src/main/java/**"
-      - ".github/workflows/formal-verification.yml"
   workflow_dispatch:
 
 permissions:

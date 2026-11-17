@@ -1,18 +1,6 @@
 name: Android emulator home UX patrol
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      - "app/src/main/**"
-      - "app/build.gradle.kts"
-      - "tools/emulator_home_smoke.py"
-      - "tools/tests/test_emulator_home_smoke.py"
-      - "tools/emulator_flow_smoke.py"
-      - "tools/tests/test_emulator_flow_smoke.py"
-      - ".github/workflows/emulator-home-ui.yml"
-  schedule:
-    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
