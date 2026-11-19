@@ -365,6 +365,9 @@ class LongshotViewModel(app: Application) : AndroidViewModel(app) {
         _overview.value = null
         _manualCuts.value = null
         _manualMargins.value = null
+        detailJob?.cancel()
+        detailJob = null
+        _detailOverview.value = null
         previewJob?.cancel()
         previewJob = null
         _previewPlan.value = null
